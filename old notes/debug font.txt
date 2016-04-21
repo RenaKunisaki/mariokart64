@@ -1,0 +1,12 @@
+80057710 Load debug font
+
+this routine loads a word from 80150298, which is 801404D8
+adds 8 to that and stores it back again
+it then stores at this address:
+06000000 0D008108 call list
+06000000 0D008080 call list
+B9000002 00000001 set other mode L
+it looks like it adds 8 three separate times, lolinefficiency
+I assume the "other mode" being set here is an orthographic mode or something,
+and those dlists load the font texture.
+there might be other interesting debug stuff in segment 13 then

@@ -1,0 +1,35 @@
+810C34C0 3C04
+810C34C2 0001
+810C34C4 2484
+810C34C6 FFXX - Music modifier (pause and unpause to fix volume and missing sounds)
+
+00 - No music
+01 - Title
+02 - Menu
+03 - Raceway
+04 - Moo Moo Farm
+05 - Choco Mountain
+06 - Koopa Troopa Beach
+07 - Banshee Boardwalk
+08 - Snow
+09 - Bowser's Castle
+0A - Kalimari Desert
+0B - Mario GP start
+0C - Final lap
+0D - First place
+0E - Second - fourth
+0F - You lose
+10 - Race results
+11 - Invincibility star
+12 - Rainbow Road
+13 - DK's Jungle Parkway
+14 - ???
+15 - Toad's Turnpike
+16 - VS/Battle start
+17 - VS/Battle results
+18 - Retry/Quit
+19 - Big Donut/Skyscraper
+1A - Trophy ceremony, part 1
+1B - Trophy ceremony, part 2 (you win)
+1C - Credits
+1D - Trophy ceremony, part 2 (you lose)

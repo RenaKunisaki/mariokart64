@@ -1,0 +1,275 @@
+gSPTexture enables/disables textures and sets the scaling value for texturing in the RSP.
+
+/*
+ * Macros to turn texture on/off
+ */
+# define gSPTexture(pkt, s, t, level, tile, on)				\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+									\
+	_g->words.w0 = (_SHIFTL(G_TEXTURE,24,8)|_SHIFTL(BOWTIE_VAL,16,8)|\
+			_SHIFTL((level),11,3)|_SHIFTL((tile),8,3)|	\
+			_SHIFTL((on),0,8));				\
+	_g->words.w1 = (_SHIFTL((s),16,16)|_SHIFTL((t),0,16));		\
+}
+# define gsSPTexture(s, t, level, tile, on)				\
+{									\
+	(_SHIFTL(G_TEXTURE,24,8)|_SHIFTL(BOWTIE_VAL,16,8)|		\
+	 _SHIFTL((level),11,3)|_SHIFTL((tile),8,3)|_SHIFTL((on),0,8)),	\
+        (_SHIFTL((s),16,16)|_SHIFTL((t),0,16))				\
+}
+
+---> 12.4.4 Texture Loading
+
+Several steps are necessary to load a texture map into the TMEM. You must block-load the texture map itself and set up the attributes for this tile. There are GBI macros that simplify all these steps into a single macro.
+
+There are two ways of loading textures: block or tile mode. Block mode assumes that the texture map is a contiguous block of texels that represents the whole texture map. Tile mode can lift a subrectangle out of a larger image. The following tables list block and tile mode texture-loading GBI commands respectively. 
+
+gsDPLoadTextureTile(timg,fmt,siz,width,height,uls,ult,lrs,lrt,pal,cms,cmt,masks,maskt,shifts,shiftt)
+/n64man/gdp/gDPLoadTextureTile.htm
+
+#define	gDPLoadTextureTile(pkt, timg, fmt, siz, width, height,		\
+		uls, ult, lrs, lrt, pal,				\
+		cms, cmt, masks, maskt, shifts, shiftt)			\
+{									\
+	gDPSetTextureImage(pkt, fmt, siz, width, timg);			\
+	gDPSetTile(pkt, fmt, siz,					\
+		(((((lrs)-(uls)+1) * siz##_TILE_BYTES)+7)>>3), 0,	\
+		G_TX_LOADTILE, 0 , cmt, maskt, shiftt, cms, masks,	\
+		shifts);						\
+	gDPLoadSync(pkt);						\
+	gDPLoadTile(	pkt, G_TX_LOADTILE,				\
+			(uls)<<G_TEXTURE_IMAGE_FRAC,			\
+			(ult)<<G_TEXTURE_IMAGE_FRAC,			\
+			(lrs)<<G_TEXTURE_IMAGE_FRAC,			\
+			(lrt)<<G_TEXTURE_IMAGE_FRAC);			\
+	gDPPipeSync(pkt);						\
+	gDPSetTile(pkt, fmt, siz,					\
+		(((((lrs)-(uls)+1) * siz##_LINE_BYTES)+7)>>3), 0,	\
+		G_TX_RENDERTILE, pal, cmt, maskt, shiftt, cms, masks,	\
+		shifts);						\
+	gDPSetTileSize(pkt, G_TX_RENDERTILE,				\
+			(uls)<<G_TEXTURE_IMAGE_FRAC,			\
+			(ult)<<G_TEXTURE_IMAGE_FRAC,			\
+			(lrs)<<G_TEXTURE_IMAGE_FRAC,			\
+			(lrt)<<G_TEXTURE_IMAGE_FRAC)			\
+}
+
+
+gDPLoadTextureBlock(Gfx *gdl, u32 timg, u32 fmt, u32 siz, u32 width, u32 height, u32 pal, u32 cms, u32 cmt, u32 masks, u32 maskt, u32 shifts, u32 shiftt)
+/n64man/gdp/gDPLoadTextureBlock.htm
+
+#define	gDPLoadTextureBlock(pkt, timg, fmt, siz, width, height,		\
+		pal, cms, cmt, masks, maskt, shifts, shiftt)		\
+{									\
+	gDPSetTextureImage(pkt, fmt, siz##_LOAD_BLOCK, 1, timg);	\
+	gDPSetTile(pkt, fmt, siz##_LOAD_BLOCK, 0, 0, G_TX_LOADTILE, 	\
+		0 , cmt, maskt, shiftt, cms, masks, shifts);		\
+	gDPLoadSync(pkt);						\
+	gDPLoadBlock(pkt, G_TX_LOADTILE, 0, 0, 				\
+		(((width)*(height) + siz##_INCR) >> siz##_SHIFT) -1,	\
+		CALC_DXT(width, siz##_BYTES)); 				\
+	gDPPipeSync(pkt);						\
+	gDPSetTile(pkt, fmt, siz,					\
+		(((width) * siz##_LINE_BYTES)+7)>>3, 0,			\
+		G_TX_RENDERTILE, pal, cmt, maskt, shiftt, cms, masks,	\
+		shifts);						\
+	gDPSetTileSize(pkt, G_TX_RENDERTILE, 0, 0,			\
+		((width)-1) << G_TEXTURE_IMAGE_FRAC,			\
+		((height)-1) << G_TEXTURE_IMAGE_FRAC)			\
+}
+
+Note: If you use the high-level programming macros gsDPLoadTexture* or gsDPLoadTexture*_4b, then you don't need to worry about load and tile syncs. They are embedded in the macro.
+
+
+1A - 1F:
+E8000000 00000000 RDP Tile Sync
+F5xxxxxx xxxxxxxx Set Tile (G_SETTILE)
+F2000000 xxxxxxxx Set Tile Size (G_SETTILESIZE)
+
+Word 1 = 0xE8000000 (RSP Tile Sync)
+Word 2 = 0
+Word 3 = (((ImgType << 0x15) | 0xF5100000) | ((((ImgFlag2 << 1) + 7) >> 3) << 9)) | ImgFlag3 (Set Tile)
+Word 4 = (((((Param2 & 0xF) << 0x12) | (((Param2 & 0xF0) >> 4) << 0xE)) | ((Param1 & 0xF) << 8)) | (((Param1 & 0xF0) >> 4) << 4))
+Word 5 = 0xF2000000 (Set Tile Size)
+Word 6 = (((ImgFlag2 - 1) << 0xE) | ((ImgFlag1 - 1) << 2));
+
+
+#define	gDPSetTile(pkt, fmt, siz, line, tmem, tile, palette, cmt,	\
+		maskt, shiftt, cms, masks, shifts)			\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+									\
+	_g->words.w0 = _SHIFTL(G_SETTILE, 24, 8) | _SHIFTL(fmt, 21, 3) |\
+		       _SHIFTL(siz, 19, 2) | _SHIFTL(line, 9, 9) |	\
+		       _SHIFTL(tmem, 0, 9);				\
+	_g->words.w1 = _SHIFTL(tile, 24, 3) | _SHIFTL(palette, 20, 4) |	\
+		       _SHIFTL(cmt, 18, 2) | _SHIFTL(maskt, 14, 4) |	\
+		       _SHIFTL(shiftt, 10, 4) |_SHIFTL(cms, 8, 2) |	\
+		       _SHIFTL(masks, 4, 4) | _SHIFTL(shifts, 0, 4);	\
+}
+
+
+#define	gDPSetTileSize(pkt, t, uls, ult, lrs, lrt)			\
+		gDPLoadTileGeneric(pkt, G_SETTILESIZE, t, uls, ult, lrs, lrt)
+		
+#define gDPLoadTileGeneric(pkt, c, tile, uls, ult, lrs, lrt)		\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+									\
+	_g->words.w0 = _SHIFTL(0xF2, 24, 8) | _SHIFTL(uls, 12, 12) |	\
+		      _SHIFTL(ult, 0, 12);				\
+	_g->words.w1 = _SHIFTL(tile, 24, 3) | _SHIFTL(lrs, 12, 12) |	\
+		      _SHIFTL(lrt, 0, 12);				\
+}
+
+Command 0xF2 bytes, high word:
+aaaaaaaa aaaabbbb bbbbbbbb
+76543210 FEDCBA98 76543210
+a=uls (10.2, 0.0-1023.75) Tile upper-left S coord
+b=ult (10.2, 0.0-1023.75) Tile upper-left T coord
+
+low word:
+.....ttt aaaaaaaa aaaabbbb bbbbbbbb
+FEDCBA98 76543210 FEDCBA98 76543210
+t=tile (0-7)			"Tile descriptor index"
+a=lrs (10.2, 0.0-1023.75) Tile lower-right S coord
+b=lrt (10.2, 0.0-1023.75) Tile lower-right T coord
+
+
+Command 0xF5 bytes, high word:
+fffss.ll lllllllm mmmmmmmm
+76543210 FEDCBA98 76543210
+f=format (0-4)			0=RGBA, 1=YUV, 2=CI, 3=IA, 4=I
+s=size (0-3)			0=4bpp, 1=8bpp, 2=16bpp, 3=32bpp
+l=line (0-511)			"The size of one row (s axis) of the texture tile (9-bit precision, 0~511)"
+m=tmem (0-511)			"Address of texture tile origin (9-bit precision, 0~511)"
+
+low word:
+.....ttt ppppccmm mmssssCC MMMMSSSS
+FEDCBA98 76543210 FEDCBA98 76543210
+t=tile (0-7)			"Index of tile descriptors for which parameters are being set (3-bit precision, 0~7)"
+p=palette (0-15)		"Position of palette for 4-bit color index texture (4-bit precision, 0~15)"
+c=t-axis flags (0-3)	0=wrap, 1=mirror, 2=clamp, 3=?
+m=t-axis mask (0-15)
+s=t-coord shift (0-15)	"(for low-level detail texture, 4-bit precision, 0~15)"
+C, M, S=same for s axis
+
+
+20-25
+FDxxxxxx xxxxxxxx Set Texture Location (G_SETTIMG)
+E8000000 00000000 RDP Tile Sync
+F5xxxxxx xxxxxxxx Set Tile
+E6000000 00000000 RDP Load Sync
+F3xxxxxx xxxxxxxx Load Block
+
+#define	gsDPSetTextureImage(f, s, w, i)	gsSetImage(G_SETTIMG, f, s, w, i)
+#define	gDPSetTextureImage(pkt, f, s, w, i)	gSetImage(pkt, G_SETTIMG, f, s, w, i)
+#define	gSetImage(pkt, cmd, fmt, siz, width, i)				\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+									\
+	_g->words.w0 = _SHIFTL(0xFD, 24, 8) | _SHIFTL(fmt, 21, 3) |	\
+		       _SHIFTL(siz, 19, 2) | _SHIFTL((width)-1, 0, 12);	\
+	_g->words.w1 = (unsigned int)(i);				\
+}
+
+_SHIFTL(v, s, w) = (lower w bits of v) << s
+
+
+Command 0xFD bytes, high word:
+fffss... ....wwww wwwwwwww
+76543210 FEDCBA98 76543210
+f=format (0-4)			0=RGBA, 1=YUV, 2=CI, 3=IA, 4=I
+s=size (0-3)			0=4bpp, 1=8bpp, 2=16bpp, 3=32bpp
+w=width - 1 (0-4095)
+
+low word: image address (64-byte aligned)
+
+
+gDPSetTextureImage(Gfx *gdl, s32  fmt, s32  siz, s32  width, s32  img)
+gsDPSetTextureImage(         s32  fmt, s32  siz, s32  width, s32  img)
+
+Arguments
+
+gdl
+    Display list pointer. 
+img
+    Image address (64-byte alignment). 
+fmt
+    Image format: 
+    G_IM_FMT_RGBA (RGBA format) 
+    G_IM_FMT_CI (CI format) 
+    G_IM_FMT_IA (IA format) 
+    G_IM_FMT_I (I format) 
+siz
+    Pixel component size: 
+    G_IM_SIZ_4b (4 bits/texel) 
+    G_IM_SIZ_8b (8 bits/texel) 
+    G_IM_SIZ_16b (16 bits/texel) 
+    G_IM_SIZ_32b (32 bits/texel) 
+width
+    Image width (1~4096 pixels). 
+    
+ 
+#define	gDPLoadTextureBlock(pkt, timg, fmt, siz, width, height,		\
+		pal, cms, cmt, masks, maskt, shifts, shiftt)		\
+{									\
+	gDPSetTextureImage(pkt, fmt, siz##_LOAD_BLOCK, 1, timg);	\
+	gDPSetTile(pkt, fmt, siz##_LOAD_BLOCK, 0, 0, G_TX_LOADTILE, 	\
+		0 , cmt, maskt, shiftt, cms, masks, shifts);		\
+	gDPLoadSync(pkt);						\
+	gDPLoadBlock(pkt, G_TX_LOADTILE, 0, 0, 				\
+		(((width)*(height) + siz##_INCR) >> siz##_SHIFT) -1,	\
+		CALC_DXT(width, siz##_BYTES)); 				\
+	gDPPipeSync(pkt);						\
+	gDPSetTile(pkt, fmt, siz,					\
+		(((width) * siz##_LINE_BYTES)+7)>>3, 0,			\
+		G_TX_RENDERTILE, pal, cmt, maskt, shiftt, cms, masks,	\
+		shifts);						\
+	gDPSetTileSize(pkt, G_TX_RENDERTILE, 0, 0,			\
+		((width)-1) << G_TEXTURE_IMAGE_FRAC,			\
+		((height)-1) << G_TEXTURE_IMAGE_FRAC)			\
+}
+gDPLoadTextureBlock(Gfx *gdl, u32 timg, u32 fmt, u32 siz, u32 width, u32 height, u32 pal, u32 cms, u32 cmt, u32 masks, u32 maskt, u32 shifts, u32 shiftt )
+#define gDPLoadBlock(pkt, tile, uls, ult, lrs, dxt)			\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+									\
+	_g->words.w0 = (_SHIFTL(G_LOADBLOCK, 24, 8) | 			\
+			_SHIFTL(uls, 12, 12) | _SHIFTL(ult, 0, 12));	\
+	_g->words.w1 = (_SHIFTL(tile, 24, 3) |				\
+			_SHIFTL((MIN(lrs,G_TX_LDBLK_MAX_TXL)), 12, 12) |\
+			_SHIFTL(dxt, 0, 12));				\
+}
+
+#define	G_TX_LOADTILE	7
+
+Command 0xF3 bytes, high word:
+ssssssss sssstttt tttttttt
+76543210 FEDCBA98 76543210
+s=uls
+t=ult
+
+low word:
+
+.....tttsssssssssssstttttttttttt
+FEDCBA9876543210FEDCBA9876543210
+t=tile
+s=lrs
+t=dxt
+
+
+#define _SHIFTL( v, s, w )	\
+    (((u32)v & ((0x01 << w) - 1)) << s)
+so e.g. _SHIFTL(0xF5, 24, 8)
+= ((0xF5 & ((0x01 << 8) - 1)) << 24)
+= ((0xF5 & (0x100 - 1)) << 24)
+= ((0xF5 & 0xFF) << 24)
+= (0xF5 << 24)
+= 0xF500 0000
+so basically, _SHIFTL(v, s, w) = (lower w bits of v) << s
+
+                               v  s w - v=hex, s,w=decimal
+python Desktop/junk/shiftl.py 1FF 0 9
+convert result to binary and line up with right side of FEDCBA9...

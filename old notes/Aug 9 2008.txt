@@ -1,0 +1,627 @@
+dlist ptrs @ 801CCC90; Read at 80291180
+
+80295A6C LUI $T7, 800E
+[...]
+80295A88 LHU $T7, C5A0($T7) ;T7 = level #
+80295A8C SLTIU $AT, $T7, 0014
+80295A90 BEQ $AT, $zero, +0054
+80295A94 SLL $T7, $T7, 2
+80295A98 LUI $AT, 802C
+80295A9C ADDU $AT, $AT, $T7
+80295AA0 LW $T7, 9454($AT) ;AT=802C0000
+80295AA4 JR $T7
+80295AA8 NOP
+80295AAC JAL 80292464
+
+if(levelnum < 0x14)
+{
+	goto = word from 0x802B9454 + (levelnum << 2)
+	//...
+}
+call 80292464
+
+jump table at 802B9454:
+80295AAC 80295ABC 80295ACC 80295ADC
+80295AEC 80295AFC 80295B0C 80295B1C
+80295B2C 80295B3C 80295B4C 80295B5C
+80295B6C 80295B7C 80295B8C 80295B9C
+80295BAC 80295BBC 80295BCC 80295BDC
+
+;routine @ 80295AEC - Yoshi Valley
+JAL 802933D8
+OR $A0, $S0, $zero
+BEQ $zero, $zero, +003C
+LW $RA, 001C($SP)
+...
+8029345C LUI $A0, 0602
+80293460 ADDIU $A0, $A0, 83F0
+[...]
+80293468 JAL 80290DAC
+8029346C SW $T8, 0004($V0)
+
+so this level's pointers are within the RSP file.
+
+
+;routine @ 80292464 - Mario Raceway
+80292470 LH $T6, 0038($A0) ;A0=8015F480; 8015F4B8=1 - current dlist ID
+[...]
+80292480 SH $T6, 0022($SP) ;T6=1
+[...]
+802925C4 LHU $T9, 0022($SP)
+802925C8 ADDIU $T4. $T9, FFFF
+802925CC SLTIU $AT, $T4, 0011
+802925D0 BEQ $AT, $zero, 8029275C 
+802925D4 SLL $T4, $T4, 2
+802925D8 LUI $AT, 802C
+802925DC ADDU $AT, $AT, $T4
+802925E0 LW $T4, 9390($AT) ;jump table at 802B9390
+802925E4 JR $T4
+802925E8 NOP
+
+T9 = SP[22]
+T4 = T9 - 1
+if(T4 >= 0x11) goto 8029275C
+T4 = word from (802B9390 + (T4 << 2))
+goto T4
+
+jump table at 802B9390:
+802925EC 802925EC 80292610 80292628
+80292660 80292660 80292694 802926C4
+802926C4 802926D8 802926F4 80292730
+80292750 80292750 80292758 80292758
+802925EC
+
+802925EC ADDIU $AT, $zero, 0002 ;$T4 points here
+
+80292600 JAL 80292764
+80292604 NOP
+80292608 BEQ $zero, $zero, 80292760
+8029260C LW $V0, 0000($S0)
+;repeat a bunch more of these
+
+;routine for Mario Raceway @ 80292764
+
+802927FC LUI $A0, 0900 ;segment #
+[...]
+8029280C JAL 80290DAC
+80292810 ADDIU $A0, $A0, 01F0 ;hardcoded offset for Mario Raceway
+
+;routine that calculates dlist pointer location and does something with it @ 80290DAC
+80290DBC LUI $AT, 00FF
+[...]
+80290DC4 ORI $AT, $AT, FFFF
+80290DCC AND $T9, $A0, $AT ;A0=090001F0 AT=FFFFFF
+[...]
+80290DE0 ADDU $T2, $T8, $T9 ;T8=1CCAA0 T9=1F0
+[...]
+80290DEC ADDU $T3, #T2, $AT ;$T2=1CCC90  $AT=80000000
+80290DF0 BEQ $T4, $zero, 001A
+80290DF4 SW $T3, 0024($SP) ;T3=801CCC90
+[...] LOTS OF SHIT HAPPENS
+8029116C LW $T4, 0024($SP) ;SP=8015A9D0; 8015A9F4=801CCC90
+[...]
+8029117C ADDU $T6, $T4, $T5 ;T4=801CCC90 T5=0
+80291180*LW $T7, 0000($T6) ;T6=801CCC90
+Try to track writes to this and boom
+
+80292810 ADDIU $A0, $A0, 01F0
+8029B404 ADDIU $T1, $T1, 01F0
+Neither of these run at all
+
+
+
+801D65A0 surface map
+8027A260 pointed to by first entry - giant mushroom vertices
+8027A260|09 03 00 00|FC 17 00 00|02 3F 04 00|88 88 88 FF
+8027A270|08 FF 00 14|FE 0E 00 00|02 40 02 AA|9C 9C 9C FF
+8027A280|09 1A 00 00|FE 17 00 00|01 C0 04 00|88 88 88 FF
+
+801DB2C0: 40010001 FF900000 FEC1FFF3 0000FFA1
+801DB2D0: 80272200 80272210 80272220 00000000
+801DB2E0: 3F800000 00000000 80000000
+
+801D65A0: 20FFFFFF 08FF0000 FE0E091A 0014FE17
+801D65B0: 8027A260 8027A270 8027A280 00000000
+801D65C0: BED21B52 BF6973B0 C3DEF6FE
+
+The first gravity float seems to be how close you can get to it or something.
+3F800000: solid
+3FC00000: can drive into it slightly at some places, right through at others.
+BFC00000: can't get more than about a foot from it
+worth noting the normal value doesn't let you get right up to it, 3F800000 does
+the second and third are similar, this could be one per vertex
+moving the triangle doesn't seem to affect the surface map. there are only three
+floats here, so they could only be coords for one vertex. wtf? maybe this stuff
+gets cached somewhere
+however, changing the vertex pointers does affect it...
+we can wipe out the first 8 bytes without affecting anything. the 9th makes it
+not solid if changed to FF or seemingly anything below 80, and not anything else.
+The next word seems quite the opposite, change its first byte to anything > 7F
+and solidity is gone.
+If the last 3 coords are all zero, we can drive through it, but we slow right down.
+similar if we use 3F800000 00000000 80000000. However changing the last to
+3F800000 this doesn't happen, you drive right on through.
+Setting them all to 0.01 doesn't seem to do anything either.
+actually this seems to be false; setting the first byte to 20 instead of 40 makes
+it not solid
+
+best guess: "surface type" is the effects applied, the coords are taken from the
+vertices, and the 3 floats are physics values of some sort.
+
+could be the reason it doesn't seem to notice changes in the vertex is the others
+are still there?
+
+
+Let's see what happens when we change segment pointers:
+(I'm counting the "GO" sign under 2D objects since it probably works the same way)
+#1: this one keeps changing between 1263D0 and 0FD860; the pointers nearby also
+    change. As expected nothing happens.
+#2: nothing I can see, but changing it during a Wario Stadium GP race freezes the
+    game or crashes the emu. but we can zero out the data it points to, and nothing
+    seems to change.
+#3: the tree graphics break. *only* the trees. They remain green which suggests
+    paletted graphics.
+#4: this being the vertex pointer, of course the vertices are wacked. Yes, all of
+    them, except the 2D objects.
+#5: this is textures, so naturally, those break. Not the 2D objects though.
+#6: breaks or removes all polygons, except a few - notably all billboards, the
+    fences, the giant pipe/shroom, and the audience stand are left.
+#7: *all* geometry disappears.
+#8: unused
+#9: as anticipated, the wrong dlists get called.
+#10, 11, 12: not used
+#13: the HUD, sky, player sprite, and Lakitu break. Odd if you change it to 41, the
+     map gets thinner. Palettes? 42 crashes the emu
+#14: unused
+#15: nothing happens? wtf? this must be used for temporary storage or something
+
+let's try swapping 6 and 7: emu crashes
+
+worth noting:
+2927FC 3C040900 LUI $A0, 0900
+292810 248401F0 ADDIU $A0, $A0, 01F0
+29B400 3C090900 LUI $T1, 0900
+29B404 252901F0 ADDIU $T1, $T1, 01F0 <-- what's this one for?
+
+044004 3C010700 LUI $AT, 0700
+044058 34210100 ORI $AT, $AT, 0100
+0451C4 3C010700 LUI $AT, 0700
+045244 34210100 ORI $AT, $AT, 0100
+04555C 3C010700 LUI $AT, 0700
+0455B8 34210100 ORI $AT, $AT, 0100
+
+rln 80164390
+
+01:01A368 117BC8|B1 00 06 02|00 02 06 04|Tri (0, 3, 1), (1, 3, 2)
+01:01A370 117BD0|06 00 00 00|0D 00 76 F8|Call Dlist 0D:0076F8
+80117BC8 01:01A368 looks like screen clearing. It gets rewritten every frame by
+802A4CC4 - the RSP instructions are hardcoded in the ASM here. If we change B1 to
+B8, the screen blacks out, but the game still runs and shows up again when we
+change it back. If we change the Triangles command, the sky breaks, so this is
+indeed drawing the sky. If we NOP it, the sky is black, but everything else seems
+fine - no failure to clear the buffer, clouds are still there, etc.
+The command itself is at 802A4CA6 - can make a "press some button to blank out the
+screen" code. :P
+This stuff is updated every frame but only changes when you move.
+
+01:01A6A0 117F00|06 00 00 00|06 00 00 00|Call Dlist 06:000000
+This is the lists that render the track, and it gets rewritten at 8029116C. The
+instructions are hardcoded here too, but if you watch in the memory editor, a few
+different sets of instructions swap in every few seconds.
+802927C4 also writes here
+
+8029116C reads the dlist pointers for this level and inserts the current one into
+this routine.
+
+01:01A6D8 117F38|06 00 00 00|07 00 00 E0|Call Dlist 07:0000E0 <-- those missing fences
+written at 802928EC
+
+802928F0 LUI $T5, 0700
+802928F4 ORI $T5, $T5, 0160
+802928F8 ADDIU $T9, $V0, 0008
+802928FC SW $T9, 0000($S0) ;80150298
+80292900 LUI $T4, 0600
+80292904 SW $T4, 0000($V0) ;80117F40
+etc... the 070000E0 is hardcoded(!) at 802928BC (upper half) and 802928D4 (lower)
+if we remove that, sure enough, no fences
+(wrong addresses, see below)
+
+Several dlist instructions are hardcoded around 802928D0. Changing calls to NOPs
+and ends:
+
+07:000450 (addr @ 80292878, op @ 80292888): poles for Shot, Nintendo, Yoshi, &
+Mario Star billboards
+if you put an 0xB8 (end dlist) op here, the
+spinning Mario sign, the billboard poles, the pause screen, and the finish line
+banner all disappear.
+
+07:003240 (addr @ 802927CC, op @ 802927DC): changing to 0xB8 kills everything
+except the sky, billboard tops, and pipe. NOPing kills a Koopa Air billboard.
+
+07:000160 (addr @ 802928F0, op @ 80292900): audience stand flags
+
+07:0000E0 (addr @ 802928BC/802928D4, op @ 802928D8): fences
+
+07:000240 (addr @ 80292898, op @ 802928A8): poles for Koopa Air, Luigi's
+
+802927FC looks to be reading the dlist pointers from seg9; it loads 090001F0 (the
+pointer location) into $A0 and calls a function (80290DAC), probably to translate
+that to a RAM address.
+
+there are other hardcoded instructions here but I'm only looking at dlist calls
+right now
+
+07:0014A0 (addr @ 802927EC, op @ 802927BC, written @ 80292800): Shot/Nintendo/
+Yoshi/Mario Star billboards (not poles), audience stand (except flags)
+
+07:003508 (addr @ 802927AC, op @ 802927BC): re-uses opcode set above, so probably
+some of the stuff listed above
+
+this routine ends at 80292918
+this probably runs every frame regardless of position, I'd have to look at the
+code more to be sure which I don't feel like doing right now
+
+0D:001B90 (addr @ 802973F8/80297408/80297450, op @ 8029744C, written @ 80297464):
+NOPping does nothing I can see. Ending the list here kills the HUD, player, and 2D
+objects in certain areas; the routine does not run in all areas.
+
+07:000068 is an End Dlist command
+
+more hardcoded dlists:
+giant pipe:
+2911E8 3C190700 LUI $T9, 0700
+2911EC 373908E8 ORI $T9, $T9, 08E8
+op @ 802911F8
+this is the one, point it to 07:000068 and no pipe
+change the call to an End Dlist and EVERYTHING disappears, so this must be drawn
+before the other stuff
+802B94A4
+giant pipe - doesn't seem to do anything:
+295E54 3C040700 LUI $A0, 0700
+295E5C 348408E8 ORI $A0, $A0, 08E8
+
+shroom:
+2911A4 3C180700 LUI $T8, 0700
+2911A8 37181140 ORI $T8, $T8, 1140
+op @ 802911B4
+this does not run when the shroom is too far away
+need to trace this routine (ends right after this) to see why, not bothering
+right now
+
+shroom, doesn't seem to do anything:
+295E3C 3C040700 LUI $A0, 0700
+295E44 34841140 ORI $A0, $A0, 1140
+
+pipe again, doesn't seem to do anything:
+29120C 3C0A0700 LUI $T2, 0700
+291210 354A2D68 ORI $T2, $T2, 2D68
+
+pipe again, doesn't seem to do anything:
+295E68 3C040700 LUI $A0, 0700
+295E70 34842D68 ORI $A0, $A0, 2D68
+
+the second ones might be intro, credits, etc
+the "pipe again" just seems to be a redundant dlist, or one that renders the pipe
+in some area that you don't generally notice it
+
+could point these to invalid dlists that will crash the game and see if it ever crashes
+
+802928B8 writes the 0xB7 at 01:01A6D0 (80117F30) just before fences are drawn
+the 0x20 part is at 8029285C, it's used in another instruction too
+if we set the high bit the fence becomes a gray wall that changes colour and
+disappears as you move; other changes seem to have no effect
+maybe this disables textures?
+
+if we change it to 0xB6 (clear geometry mode) and play with the values, we get
+neat effects:
+0000: looks normal
+0001: no depth testing - 2D objects & billboard poles appear in front of track
+2000: no culling - can see back of fences & billboard poles
+other bit values look normal
+
+with 0xB7 (set geometry mode):
+0000: looks normal
+0001: disable depth testing for billboard poles only?
+2000: disable culling for billboard poles only?
+8000: disable textures and make fences flicker?
+
+
+802B94A4 surface map jump table
+Rainbow Road routine:
+80296328 LUI $A0, 0601
+80296334 ADDIU $A0, $A0, 6440
+
+80296328|3C 04 06 01|A4 4C 00 00|0C 0A 43 2B|24 84 64 40|<....L....C+$.d@
+80296338|0C 0A 57 1B|00 00 00 00|44 80 20 00|3C 01 80 16
+
+Seg6 surface map data is at 801E2F40
+80290CF4 is around the beginning of the routine that reads it, just after it's
+converted the RSP address to a RAM address
+It reads the entire first word into $T0 and returns(?) if it's zero
+Some hardcoded values are set: $S4 = 8015F5A4, $S2 = 8015F59C, $S3 = 8015F5A0,
+$S1 = 1
+It reads the flags halfword into $T1 and checks for 0x8000. The word at 8015F59C
+gets set to 1 if it's set, 0 if not.
+It reads the flags again into $T3, checks for 0x2000, and sets word 8015F5A0 to 0
+or 1 to match the flag.
+The compiler doesn't seem to know how to use BEQL <_< it puts an instruction in
+the delay slot and then jumps to another of the same instruction, so the word gets
+written twice; no harm done, but silly
+A third read of the flags into $T5 checks for 0x4000 and sets word 8015F5A4 to
+match it.
+It reads the first word into $A0, the surface type into $A1, and the dlist index
+into $A2, and calls 802AF5D8
+It loops through each entry until it finds one with the first word set to 0.
+
+802AF5D8:
+Translates the RSP address in $A0 into a RAM address (801E3080) and stores it
+in $S3. (This is the address of the new dlist.)
+word 8015F6FA = 0
+$T6 = $A1 & 0xFF ;$A1 is surface type
+$S5 = $A2 & 0xFFFF ;A2 is dlist ID
+$S4 = $T6
+word 8015F6FC = 0
+$S2 = 8015F58C
+$S6 = 0
+$S7 = 06000000
+$S0 = first word of dlist
+$S1 = 2nd word
+$AT = 04000000
+$V0 = $S0 & 0xFF000000
+if $S7 == $V0 ;if instruction is Call Dlist
+	...call this function recursively
+if $AT == $V0 ;if instruction is Load Vtx
+	...call 802AED6C
+$AT = 0xBF000000
+if $AT == $V0 ;if instruction is Triangle
+	...call 802AEB14 ;this is 802AF6F0
+$AT = 0xB1000000
+if $AT == $V0 ;if instruction is 2 Triangles
+	$A0 = $S0 ;first word of command
+	word at $S2 += 2
+	$T0 = $S4 & 0xFF
+	$A2 = $T0 ;surface type
+	$A1 = $S1 ;second word
+	$A3 = $S5 & 0xFFFF ;dlist ID
+	...call 802AEBA4 ;this is 802AF728
+
+802AF738:
+$AT = 0xB5000000
+if $AT == $V0 ;if instruction is Line
+	...call 802AECA0
+$AT = 0xB8000000
+if $AT == $V0 ;if instruction is End List
+	return
+$S6++
+$AT = 0x1FFF
+if $AT == $T6
+	return
+;otherwise the loop runs again
+
+802AED6C: ;Load Vtx handler; $A0 = 2nd word
+Converts RSP addr $A0 to RAM addr (807FF000) and stores in $V0
+$V1 = 0
+if $A1 == 0 goto 802AEE10
+$T1 = $A1 & 3
+$A3 = $T0
+if $T1 == 0 goto 802AEDD8
+
+802AEDD8:
+$T4 = 8015F668
+$T3 = $A2 << 2
+$A0 = $T3 + $T4
+store word $V0 to $A0 ;storing pointers to vertices at 8015F668
+store word ($V0 + 0x10) to ($A0 + 4)
+store word ($V0 + 0x20) to ($A0 + 8)
+store word ($V0 + 0x30) to ($A0 + 0xC)
+$V1 += 4
+$V0 += 0x10
+if $V1 != $A1 loop ;$A1 is probably # vertices the command loads
+
+looks like it parses the Load Vtx command to get the # of vertices, and copies
+pointers to that many of them to 8015F668
+this means it probably does emulate the cache - old entries here wouldn't get
+wiped out by the next Load Vtx command if it loads less
+
+802AEBA4: ;2 Triangles handler - $A0=1st word of command, $A1=2nd word,
+;$A2=surface type, $A3=dlist ID
+$T6 = $A0
+$T3 = ($T6 & 0xFF00) >> 8 ;3rd byte of command
+$T2 = $A1
+$T8 = ($A0 & 0xFF0000) >> 16 ;2nd byte of command
+$V0 = 8015F668 ;where vtx pointers were stored from Load Vtx handler
+$T5 = ($T3 >> 1) << 2 ;vertex # * 4 (right shift because #s are *2)
+$T7 = $V0 + $T5 ;vertex pointer index
+$T0 = ($T8 >> 1) << 2 ;vertex # * 4
+$T4 = ($T2 & 0xFF0000) >> 16 ;5th byte of command
+$T1 = $V0 + $T0 ;vertex pointer index
+
+The surface map data in RAM contains more information, which is largely undocumented. Each entry is 44 bytes:
+   00: Some sort of flag byte. Changing values here can cause different effects when you touch the polygon, such as tumbling.
+   01: Seems to specify a display list ID to render when touching this surface.
+   02: ?
+   03: Surface type.
+04-07: ?
+08-0F: Looks like coordinates, but only 2 dimensions. If we change these significantly, the surface (but not the graphics) disappears.
+10-1B: Pointers to vertex data. Changing these also makes it disappear. The coordinates of the surface polygon probably come from these vertices.
+1C-1F: ?
+20-23: Float related to gravity, normally 1.0. Changing this can make you slowly sink into the polygon, or fly into the air.
+24-2B: Related to Lakitu dropoff positioning?
+
+Sample data from part of the track in Royal Raceway, in front of the finish line:
+801DB2C0: 40010001 FF900000 FEC1FFF3 0000FFA1
+801DB2D0: 80272200 80272210 80272220 00000000
+801DB2E0: 3F800000 00000000 80000000
+
+From Mario Raceway, part of the giant mushroom:
+801D65A0: 20FFFFFF 08FF0000 FE0E091A 0014FE17
+801D65B0: 8027A260 8027A270 8027A280 00000000
+801D65C0: BED21B52 BF6973B0 C3DEF6FE
+
+802ABD40 reads the surface map in RAM, $A0 seems to be the index to read
+called from 8000CD68
+800F6AAA is the halfword index into the map entries
+at start it's set to 0x1388, wtf? (0x1388 = 5000)
+this is done at 802AAAD8, clearing out a few places to that value
+
+in Mario Raceway, 802ACB6C stores 0x6B here from $A1, and that's what it stays at
+so this routine isn't working in Rainbow Road?
+it seems to run once during load and again every frame after the race starts,
+calculating which map you're over
+but here it's not running and the index is staying at 0x1388... why?
+as soon as I land, it runs
+in an unmodified ROM it runs during load as normal... so for some reason this
+routine is not seeing my new stuff
+I bet if that clear to 1388 was patched to store 0 instead it'd work... seems like
+a much saner default
+all this shit is being jumped right over somewhere
+no time to see where
+
+802AAAD9 0080 will patch it to store 0 as the index instead, which does no good
+(and probably also stores 0 to a bunch of other things that shouldn't be)
+so we'll have to trace that routine
+
+802ACB6C stores $A1 as the index; it's called from 802ADC8C but the params are
+A0=800F6AA0 A1=40B00000 A2=0 A3=40AF5C29
+and of course it crashes breaking here
+802AC760 is the beginning of the routine, it doesn't run for this level
+ends at 802ACB9C, called from 802ADC8C
+
+xlg 802adc94
+8003CDF8 is an ancestor of this that runs here, it calls 8002D268
+8002D384 runs every frame
+802AD950 seems to be the routine that sets the index
+in Rainbow Road it gets called but doesn't set it
+802ADAD8
+802ADB48
+
+802ADBF8 through 802ADD7C is a big loop
+802AC760 is the big ass-routine in which the index is actually set, although it
+gets called a few times before doing it
+in RR it doesn't get called
+802ADC8C calls it
+
+802ADBF0 branches in RR, not in others
+802ADBF0 BLEZ $S6, 802ADD80
+802ADBD8 LHU $S6, 0002($V1) ;8014FA8A on BB, 8014FDD0 on RR
+
+this is written at 802AF500, storing $T6 which is a loop counter; it counts up to
+0xE in BB
+runs many times in RR but $T6 only shows 1 or 2, it ends up storing 2
+
+The routine at 802AF0FC, called at 802AF4B4, is important - if we NOP it the same
+thing happens in BB as in RR. It's huge though :-(
+802AF2E4 -> 802AEE1C seems unimportant
+
+in BB this gets passed params like FFFFF86A, FFFFF8FA, FFFFF7A4, FFFFF83D, and
+returns 0 or 1
+it seems to have more than one exit
+it seems to set its return value at the very end, at 802AF2F0
+if we rig it to always return 0 nothing seems to happen, maybe >1 exit causes this
+if we change the call to it to instead load 1 (24020001), we start on the quad as
+expected!
+Since I'm in a hurry I'm just going to patch this shit right here and if it
+doesn't break anything, use it like that... 802AF4B4 -> 24020001
+Lakitu seems to put you back at the last path point you passed; if it's below the
+track he pulls you up through it
+seems to increase load time a bit maybe, and the finish line banner looks out of
+place on Toad's Turnpike, but besides that it seems to work fine on both Toad's
+Turnpike (even in GP mode) and Royal Raceway, which have overlaps and jumps, so
+it should work fine here too
+the routine once again is 802AF0FC
+
+that seems to be working... only in Time Trial though; in GP everyone starts way
+in the air and falls but they land fine
+this routine doesn't run in GP mode... I don't care anymore I'll run it in Time
+Trial
+
+
+For the colour hack:
+80295AA4 is a convenient switch that runs every frame; we can hijack it to have
+our new code executed only on this level
+
+801E3200 is where our new code will be in seg6
+
+jump table at 802B9454:
+80295AAC 80295ABC 80295ACC 80295ADC
+80295AEC 80295AFC 80295B0C 80295B1C
+80295B2C 80295B3C 80295B4C 80295B5C
+80295B6C 80295B7C 80295B8C 80295B9C
+80295BAC 80295BBC 80295BCC 80295BDC
+Look for this in ROM and replace 80295B7C with 801E3200
+in ROM at 122A64
+
+Free: $T0 $V1 $T7 $T6 $V0 $K1
+
+801E3200
+LUI $T6, 807F
+ORI $T6, $T6, F000 ;address of vertices
+
+LUI $T7, 801E
+ORI $T7, $T7, 3200 ;address of this code
+LBU $T0, 0080($T7) ;current alpha value
+LW $K1, 0084($T7) ;current delta
+
+ADDIU $V0, $zero, 0068 ;# of vertices
+
+loop:
+SB $T0, 000F($T6) ;set alpha
+ADDIU $V0, $V0, FFFF ;decrement count
+BGEZL $V0, loop
+ADDIU $T6, $T6, 0010 ;next vertex
+
+ADDU $T0, $T0, $K1 ;adjust alpha
+
+SLTI $V0, $T0, 0020 ;is < minimum?
+BNEL $V0, $zero, lessthanzero
+ADDIU $K1, $zero, 0004 ;set new delta to 4
+
+SLTI $V0, $T0, 0100 ;is > 0xFF?
+BEQL $V0, $zero, overflow
+ADDIU $K1, $zero, FFFC ;set new delta to -4
+
+end:
+SW $K1, 0084($T7) ;store new delta
+J 80295B7C ;do original routine
+SB $T0, 0080($T7) ;store new alpha
+
+lessthanzero:
+ADDIU $T0, $zero, 0020 ;set alpha to minumum
+BEQ $zero, $zero, end
+NOP
+
+overflow:
+ADDIU $T0, $zero, 00FF ;set alpha to FF
+BEQ $zero, $zero, end
+
+works great :-D
+in the final version I adjusted the minimum to 0x30 and delta to 8
+
+                           3C0E807F
+35CEF000 3C0F801E 35EF3200 91E80080
+8DFB0084 24020068 A1C8000F 2442FFFF
+0443FFFD 25CE0010 011B4021 29020020
+54020007 241B0004 29020100 50020007
+241BFFFC ADFB0084 080A56DF A1E80080
+24080020 1000FFFB 00000000 240800FF
+1000FFF8
+
+C194CE C194D6 C194DA C194E2 C194F3 C194FF
+Level header is at 802B8FF0; let's find the ROM read routine
+first 2 words (C00010, C1997C) are read at 802AA93C and copied to stack in reverse order
+(8015AB04)
+this is read to $A0 and $A1 at 802AA9E8, and then 802AA88C is called
+it shuffles the arguments around a bit, and ends up calling 80001158:
+$A0=807E6690, $A1=C00010, $A2=019970, $A3=C1997C. Looks like dest, src, size,
+except size is rounded down for some reason.
+It then calls 800400D0 ($A0=807E6690, $A1=801CCCB0) which decompresses the MIO0
+file it just copied.
+Files decompressed from ROM in TT mode: (dest, src, size)
+8028DF00 0F7510 02C130 ;looks like code, maybe seg1
+8028DF00 02C470 000001 ;??? $A3 is 0xFF
+801CCAA0 88F2A0 000060 ;seg9?
+807E6690 C00010 019970 ;seg6
+801E36E0 C39260 00E140 ;seg4
+naturally the map loading is another routine; this one actually calls a bunch
+of others
+and also write breakpoints don't catch it

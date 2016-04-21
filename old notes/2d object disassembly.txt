@@ -1,0 +1,233 @@
+(old, ugly notes)
+
+802B52E4 writes to 8015F9D0 which is the coords of a tree in Luigi Raceway, it loads the coord from A1 which is 8015AA9C
+
+Entire routine (starting at 802B52D8):
+SW $A0, 0000($SP)
+LWC1 $F4, 0000($A1)
+ADDIU $V0, $SP, 0000
+SWC1 $F4, 0000($A0) ;Stores coord
+LW $T7, 0000($SP)
+LWC1 $F6, 0004($A1)
+SWC1 $F6, 0004($T7)
+LW $T8, 0000($SP)
+LWC1 $F8, 0008($A1)
+JR $RA
+SWC1 $F8, 0008($T8)
+
+The first time this routine runs, registers:
+A0 = 8015F9D0 (tree coord), A1 = 8015AA9C
+Called from 80296D28 [0C0AD4B6], killing it puts all the trees at 0,0,0
+looks like this memory isn't cleared between loads though, so if the level has already been loaded once, killing this won't do anything.
+When this routine is called there is coordinate data at 8015AA9C. A1 is always 8015AA9C and the data there changes.
+It's modified at 800C3404, which is a delay slot instruction. Killing this or the branch doesn't seem to do anything. [0C0304FF AFCE004C]
+
+Another modification at 800C48F0. It's storing 0x7FFFFFFF at AA9C, AAA4, AAAC.
+
+800C502C stores a series of registers here, all of which are zero. 800C48F0 runs again, then this, and this pattern repeats a few times.
+8015AA9C is on the stack. -_-
+
+The routine that calls 80296D28 starts at 80296D10 [27BDFFD0 AFB00020]. Disabling it by putting JR $RA, NOP at the beginning kills all the trees, except for one which I presume was loaded before I disabled the routine.
+When it's called, A0=8015F9B8, A1=8015AA9C, A2=8015AA88, A3=8015AA90. There seems to be coordinate data near these places.
+
+802B95A0 is a pointer table of some sort, at 80296D9C it jumps to an entry in this table. Killing this doesn't seem to have done anything.
+
+Coord data is at 8015AA9C before 80296D10 is ever called. It's called at 8029ECFC, which begins at 8029EC88 and is called at 8029D750, which begins at 8029D6A4, which is never called. -_- The entry point seems to be 8029D6F0, but note that T3 == this and there's a JR $T3 right above. This routine might actually start at 8029D584. Coord data is not yet present. It's first written at 8029D660.
+The first coordinate is converted from a word which is copied from $V0.
+800DC5A0, the track number, is read into $T3. A check is performed to see if this is less than 0xC. The number is left-shifted by 2.
+
+$V0 is read at 8029D60C from 801DCD90. This is the trees' raw coordinate data (16-bit integers).
+This routine re-runs when you choose Retry, but the data is not reloaded from ROM.
+This data is found in an expanded ROM at D6DC38, which is in the RSP file. The raw data starts at D5DDB8 so this is 0xFE80 in the file.
+
+Looks like the game is just reading from the decompressed RSP data at 801D6D68. This puts the item box data at 801DCD90. At 8029D60C we see LH $V0, 0000($S3) and S3 = 801DCD90.
+8029D5F0 is ADDU $S3, $S3, $AT. At this point, S3=001DCD90, AT=80000000.
+8029D5C8 is ADDU $S3, $T8, $T9. T8=001CCF10, T9=0000FE80 - our magic number. Not sure why it isn't using the data at 801D6D68, which is identical.
+8029D5AC AND $T9, $A0, $AT. A0 = 0600FE80, AT = 00FFFFFF. A0 is a parameter to this routine which begins at 8029D584 and ends at 8029D69C with JR $T3.
+There are a number of JALs to 8029D584, here it's called from 8029DDD8. Looks like the value 0601FE80 is hardcoded... It also calls 8029D830 afterward with A0=0601FDE8.
+This routine only runs for Luigi Raceway.
+
+Calls to 8029D584:
+80003128 12th, 16th (last) scenes during credits (Mario Raceway, Royal Raceway), A0=06009570 (hardcoded)
+800032C0 Second scene during credits (Moo Moo Farm), A0=06014330 (hardcoded)
+8029DBC0 Mario Raceway, A0=06009570 (hardcoded)
+8029DCAC Bowser's Castle, A0=06009290 (hardcoded)
+8029DCE0 Yoshi Valley, A0=060180A0 (hardcoded)
+8029DD44 Frappe Snowland, A0=06007718 (hardcoded)
+8029DDAC Royal Raceway, A0=0600DA78 (hardcoded)
+8029DDD8 Luigi Raceway, A0=0600FE80 (hardcoded)
+8029DE0C Moo Moo Farm, A0=06014330 (hardcoded), does some other things first too
+8029DE40 Kalimari Desert, A0=06022F08 (hardcoded)
+
+No routine for Koopa Beach, Toad's Turnpike, Choco Mountain, Wario Stadium, Sherbet Land, DK Jungle, Banshee Boardwalk, Rainbow Road, or any battle course. These don't call 8029D584.
+
+8029DBB4 jumps to these routines. It jumps to the following for the other courses; they all seem to call 8029D830 with a hardcoded value for $A0:
+Koopa Beach	8029DD60 06018E78 Does some other things before calling, but $A0 is hardcoded.
+Turnpike	8029DE28 06023AE0
+Choco		8029DC88 06007250
+Wario Stadium	8029DFFC 0600CB40
+Sherbet Land	8029DFD4 06009B80
+DK Jungle	8029E10C 06013EC0
+Boardwalk	8029DCC8 0600B3D0
+Rainbow Road	8029DFE8 06016338
+Big Donut	8029E130 06000058
+Block Fort	8029E0D0 06000038
+Double Deck	8029E0F8 06000028
+Skyscraper	8029E0E4 06000080
+
+Looks like every track calls 8029D830, it probably draws item boxes while 8029D584 draws trees.
+Disabling these two routines removes item boxes, trees (except DK Jungle, Koopa Beach), cacti, and bushes (Bowser's Castle). Most likely the trees, cacti and bushes are all the same object with different graphics. Notice the trees in Moo Moo Farm look different and are not tangible (since they're usually way out in the field anyway), and the ones in Yoshi Valley look different too.
+
+Fun Gameshark codes can be made:
+8129D830 080A
+8129D832 7561
+8129D834 2400 All item boxes become shrubbery
+Note: On tracks without shrubbery (including Koopa Troopa Beach and DK's Jungle Parkway, which use a different set of trees), the item boxes are simply removed. Special item boxes, such as the one above the rock in Koopa Troopa Beach, are not affected.
+
+8129D584 080A
+8129D586 760C
+8129D588 2400 All shrubbery becomes item boxes
+Using both at once will crash the game.
+
+2D object loading routines:
+8029D830 - Item boxes
+8029D584 - Trees
+8029CC14 - Piranha plants
+8029CD80 - Palm trees (Koopa Beach)
+8029D018 - Falling rocks (Choco Mountain)
+All take A0 as the parameter, high byte should be 06, low 3 are offset in the RSP file to load from.
+
+Big fun list of what each level's routine called from 8029DBB4 does (in 50cc GP mode):
+8029E140 looks like the end of the routine. It reads an unsigned halfword from 80150110 and stores it at 8015F900, then returns.
+
+Luigi Raceway (8029DDD4):
+Load trees from 0600FE80
+Load item boxes from 0600FDE8
+
+Moo Moo Farm (8029DDF4):
+Load a word from 800DC538 (number of players, 1-4)
+If it's not 4, load trees from 06014330
+Load item boxes from 060143E0
+
+Koopa Troopa Beach (8029DD60):
+Set $F10 = 328 (0x43A40000)
+Load word from 8015F784 into $F16 (=1, 0x3F800000) - tree-related, using 0.01 moves them
+Set $F14 = 70 (0x428C0000)
+Set $F12 = $F10 * $F16 (single, =328 * 1)
+Set $A2 = 0xD000
+Call 802A14BC (A0=00000000, A1=00000100, A3=802386F8) - returns zero, does nothing
+Load item boxes from 06018E78
+Load palm trees from 06018F70
+
+Kalimari Desert (8029DE3C):
+Load trees from 06022F08
+Load item boxes from 06022E88
+Set $A0 = $SP + 0x40 (=8015AAF8)
+Set $A1 = 0xC4D20000 -coords of one of the train crossing signals
+Set $A2 = 0x40000000
+Set $A3 = 0x420C0000
+Call 802B529C (no return value)
+Load $F4 from 8015F784 (=1, 0x3F800000) - changing moves the signals, 0.01 puts them all in front of the finish line. Maybe this is how much to multiply the coords by?
+ -that seems to be it, changing the next value moves only one signal, and these are multiplied
+Load $F18 from SP + 0x40 (8015AAF8; = -1680, 0xC4D20000)
+Set $A0 = $SP + 0x40
+Set $A1 = $SP + 0x2C
+Set $F6 = $F18 * $F4 (single, = -1680 * 1)
+Set $A2 = $SP + 0x34
+Set $A3 = 0x27
+Store $F6 to $SP + 0x40
+Call 8029EC88 (returns 0x3B) - killing this removes the first signal
+Set $T1 = $V0 << 3 (=0x1D8) 
+Set $T1 = $T1 - $V0 (=0x19D)
+Set $T1 = $T1 << 4 (=0x19D0)
+Set $AT = 0x80160000 + $T1 (=0x801619D0)
+Store halfword 1 at 0xF9BE($AT) (=8016138E) - changing it back to 0 makes the first signal go off when the train is at the second intersection
+-looks like all of that is just to load one crossing signal x_x
+
+Set $A0 = $SP + 0x40 (=0x8015AAF8)
+Set $A1 = 0xC4C80000
+Set $A2 = 0x40000000
+Set $A3 = 0x420C0000
+Call 802B529C
+and on and on and on it goes.... all the way to 8029DFCC; also it jumps to 8029E13C instead of 8029E140
+I'm stopping at 8029DEC0 >8^(
+
+Toad's Turnpike (8029DE28):
+Load item boxes from 06023AE0
+
+Frappe Snowland (8029DD40):
+Load trees from 06007718
+Load item boxes from 06007810
+
+Choco Mountain (8029DC88):
+Load item boxes from 06007250
+Load falling rocks from 06007230
+
+Mario Raceway (8029DBBC):
+Load trees from 06009570
+Load piranha plants from 0600
+Load item boxes from 06009498
+Set $A3 = 0xC4A28000 - coords of giant Mario sign
+...etc until 8029DC80
+
+Wario Stadium (8029DFFC):
+Load item boxes from 0600CB40
+...etc until 8029E0C8
+
+Sherbet Land (8029DFD4):
+Load item boxes from 06009B80
+
+Royal Raceway (8029DDA8):
+Load trees from 0600DA78
+Load item boxes from 0600DB80
+Load piranha plants from 0600D9F0
+
+Bowser's Castle (8029DCA8):
+Load trees from 06009290
+Load item boxes from 06009370
+
+DK Jungle (8029E10C):
+Load item boxes from 06013EC0
+Call 8029D9F8 (A0=8027F9D0, A1=8027F9E0, A2=00000675, A3=00000675, returns 0xB200)
+ -disabling this removes those pesky coconuts
+Call 80298D10 (A0=80160388, A1=00000000, A2=3F800000, A3=00000000, returns 0x06013F78)
+ -disabling this doesn't seem to do anything - maybe the bridge sounds?
+
+Yoshi Valley (8029DCDC):
+Load trees from 060180A0
+Load item boxes from 06018110
+Set $A1 = 0xC50FC000 (giant egg X coord)
+Set $A3 = 0x441E8000 (giant egg Z coord)
+Set $A0 = $SP + 0x40
+Set $A2 = 0 (giant egg Y coord)
+Call 802B529C (no return value - load giant egg)
+Load word to $F6 from 8015F784 (=1, 0x3F800000) - tree-related, using 0.01 moves them
+Load word to $F4 from $SP + 0x40 (8015AAF8; = -2300, 0xC50FC000) - changing either of these removes the giant egg
+Set $A0 = $SP + 0x40 (= 0x8015AAF8)
+Set $A1 = $SP + 0x2C (= 0x8015AAE4)
+Set $F8 = $F4 * $F6 (= -2300 * 1)
+Set $A2 = SSP + 0x34 (= 0x8015AAEC)
+Set $A3 = 9
+Store word $F8 at $SP + 0x40 (0x8015AAF8)
+
+Banshee Boardwalk (8029DCC8):
+Load item boxes from 0600B3D0
+
+Rainbow Road (8029DFE8):
+Load item boxes from 06016338
+
+Big Donut (8029E130):
+Load item boxes from 06000058
+Load word $RA from $SP + 0x14 (8015AACC; =0x8029E7C4)
+Load unsigned halfword $T6 from 80150110
+Store halfword $T6 at 8015F900
+Return from subroutine
+
+Block Fort (8029E0D0):
+Load item boxes from 06000038
+
+Double Deck (8029E0F8):
+Load item boxes from 06000028
+
+Skyscraper (8029E0E4):
+Load item boxes from 06000080
