@@ -1,0 +1,136 @@
+800EFF8C REPLAY
+800E7770 ptr to text (other text is nearby, i.e. course ghost)
+800E7773 0092 will disable the text (point it to NULL)
+ptr read at 800A57B8 (to $A0), and it calls 80093034: A0=ptr, A1=FF,
+A2=8019F7A8, A3=4
+0C02 -> 2400; this seems to do nothing
+
+also read at 800A5824 (to $A2), and it calls 80093324: A0=BF, A1=30, A2=ptr
+A3=0
+A0 and A1 are set right above this
+If we change A0 to, say, 80, the text moves, and is covered by the item box
+so this function draws it; A0 is X, A1 is Y, A2 is ptr; (0, 0x10) is the top
+left corner
+A4 is the amount of spacing between the letters, it sets this to zero
+Funfun codes:
+810A581E X position
+810A5822 Y position
+810A5830 2400 disable text
+810A5828 2407 + 810A582A ???? letter spacing
+it sets the text pointer at 800A5824, but I can't see where it's getting that
+from
+
+Nothing shows up if we call this from elsewhere, it might be getting drawn over
+before it can be displayed, by the sky or something
+But for a subtitle hack we can hack the "REPLAY" text to always display, and
+change its pointer and coords dynamically
+There are other calls here, let's see what happens if we NOP them:
+800A5814 0C02 nothing
+800A5808 0C02 game freezes
+800A57B4 0C02 nothing (one of these could be drawing the box behind it)
+800A57AC is the branch that makes it blink, NOP to stop blinking
+
+To hook this, we'd want to put a J at 800A581C, and NOP/overwrite (and jump
+back to 800A5824), then our routine is free to set $A0, $A1 and $A2.
+Looks like it returns if it hits an unprintable character. Unprintable:
+~`@#%^&)_=[]{}\|:;<>/ 0x7F and anything < 0x20
+$ acts as a tab
+* gives you '----', only with dots instead of dashes
+( is the 'cc' symbol
+Anything >= 0x80 shows a B
+
+We still need to make it show outside replay mode; this whole routine doesn't
+run
+called from 800A075C
+if we NOP the branch just above it draws the replay mode pause menu above the
+normal pause menu
+This seems to be part of a big ass-pointer table; this address is at 800F18A4,
+it's read and jumped to at 8009F6A0, the table appears to begin at 800F16F8
+this also jumps to various other addresses
+Let's try finding one that runs in race mode and hijacking it
+800A07EC looks good, the pointer is at 800F19E8, it draws the "cannot save for
+ghost" notice, but it runs every frame whether you have that option or not
+Well of course that wouldn't work because this routine doesn't fucking do
+anything
+
+Looks like some float shit has to be pushed on the stack for it to work; it's
+storing $F20 (0.8) at $SP + 0x10 and $SP + 0x14
+
+NOW it works. This value is the text size. Not sure how it's fading and
+changing colours, don't care either. (It's changed colours on its own at some
+point. O_o)
+Actually it's staying at whatever colour was used last (notice it starts green
+and turns red when you hit a chomp) so there must be a colour variable
+somewhere
+You can use negative values to flip it upside-down too.
+Should make codes for those scales.
+Just as I thought, the first one (0x10) is X scale, the second is Y.
+Also yes, you can print a fucking looooong string and it will just cut off the
+part that's off-screen, and you can scroll it using negative X coords
+But guess what, if we call this from somewhere else, it still does fuck all
+so to hell with that, I'm hacking this routine instead
+Since this is a hack I'm just going to patch the routine to jump to 801E3380
+and hope there's code there. D:
+800F19E0|80 0A 08 C4|80 0A 08 C4|80 0A 07 EC|80 09 F8 44
+Our pointer is at 0F25E8 in ROM, I'll change this to 801E3380
+
+801E3380
+LUI $A0, 3F4C
+ORI $A0, $A0, CCCD ;text scale
+SW $A0, 0010($SP)
+SW $A0, 0014($SP)
+LUI $A2, 801E
+ADDIU $A2, $A2, 33BC ;Scroll word, then text
+LW $A0, 0000($A2)
+ADDIU $A0, $A0, FFFF
+SW $A0, 0000($A2) ;scroll
+ADDIU $A2, $A2, 0004
+ADDIU $A1, $zero, 0010 ;Y pos
+JAL 80093324
+ADDIU $A3, $zero, 0000 ;Letter spacing
+J 800A07EC
+NOP
+
+3C043F4C
+3484CCCD
+AFA40010
+AFA40014
+3C06801E
+24C633BC
+8CC40000
+2484FFFF
+ACC40000
+24C60004
+24050010
+0C024CC9
+24070000
+080281FB
+00000000
+
+Now for the subtitle hack, I've removed all the redundant lines from the lyrics
+and inserted them into the ROM, along with a pointer table. Since I don't want
+to have to expand seg6, I'm pasting it overtop of 06:000000, which seems to be
+working fine because that stuff isn't used anymore.
+The pointer table is 2 words per line; one frame #, one pointer.
+
+
+Later, fixing it to work on all tracks: Change it to jump to 8028ECEC.
+Here we need to add code to jump to 801E3380 only if playing track 0x0D:
+
+8028ECEC:
+LIO $K1, 800E
+LB $K1, C5A1($K1) ;get track
+XORI $K1, $K1, 000D ;check for 0xD without using another register :-D
+BNE $K1, $zero, skip
+NOP
+J 801E3380
+NOP
+
+skip:
+J 800A07EC
+NOP
+
+F82FC 3C1B800E837BC5A13B7B000D141B00030000000008078CE000000000080281FB00000000
+In convenient BlackRose batch write format :-D
+
+The pointer at 0F25E8 needs to be changed to 8028ECEC.

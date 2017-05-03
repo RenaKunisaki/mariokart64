@@ -1,0 +1,26 @@
+TKMK seems to be the header of another type of file, like MIO0. I have yet to examine the file format but it appears to be used for graphics. There are 63 of these files in the ROM. The first 16 bytes are as follows (taken from the first file):
+
+#0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+54 4B 4D 3B|30 30 06 0F|00 DC 00 20|00 00 06 B8
+ T  K  M  K| 0  0      |           |           
+
+0-3: Always 'TKMK'. Changing this doesn't seem to do anything. Likely just indicates the file format.
+
+4-5: Always '00'. Not sure what this does. Could be that the header is actually 'TKMK00', but having a 6-character header seems odd.
+
+6: Usually 06, sometimes 82. Changing this messes up the graphics.
+
+7: Always 0F.
+
+E-F: Seems to be a palette pointer. Unusure how many bytes, likely 2 or 4. It is, in fact, possible to crash the game by changing this (changing it to 0098 in the file at 7FB8C0 causes this). If it is indeed a pointer, it would seem it has to be 16- or 32-bit aligned. This was tested using the file at 7FB8C0, assuming that this value points to the address of the file plus the value. Moving several bytes (up to the large block of zeros) starting here one byte back (and adding a zero at the end to compensate) did indeed cause palette distortion. However, simply changing this value to 0095 has a different effect.
+
+Note that the first file is outside of the first megabyte, so editing the files won't affect the CRC. (Woot.)
+
+List of files:
+7FA3C0: 'Player Select'
+7FAFC0: ?
+7FB8C0: DK's name on player select
+
+Viewing the first file's general area in Tile Molestor produced no real interesting results, suggesting that compression may be used. However, it is interesting to note large holes in the image that correspond to large blocks of zeros. All TKMK files appear to be padded to a multiple of 256 bytes.
+
+On another interesting note, 'JGIN' can be found at 201860, 202981, 2038C0, 209034, 230F48, and 24CFBF. Note that 2 of these are at an odd-numbered address. They are all likely within compressed MIO0 data. They probably don't mean anything special, but treating them as a float, double or R4300 instruction produces nothing interesting (the values surrounding them don't look like code), so I dunno what they are.

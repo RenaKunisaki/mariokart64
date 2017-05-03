@@ -1,0 +1,73 @@
+write 80165F5C:
+8007AD84 R0 when you use an item
+800729E8 A1 after animation (also to 5F5A)
+Looks like 800729D0 sets the item but there aren't any
+random numbers here.
+8007BA50 reads item from 80165F5A
+written at 800729CC from ~8007B008
+at 8007AFE0 $V0 contains the item you're getting,
+it's set by the call to 8007AF40 -> 8007ADA8,
+this looks like a big RNG
+around 8018D3EC looks like frame counters, D40C may be
+actually random
+
+8107AFD8 0C0F
+8107AFDA FFC0
+813FFF00 3C1B
+813FFF02 8019
+813FFF04 8F7B
+813FFF06 D3FC
+813FFF08 001B
+813FFF0A D903
+813FFF0C 03E0
+813FFF0E 0008
+813FFF10 3362
+813FFF12 000F
+
+8007AFD8
+JAL 803FFF00
+
+803FFF00
+LUI $K1, 8019
+LW $K1, D3FC($K1)
+SRA $K1, $K1, 4
+
+JR $RA
+ANDI $V0, $K1, 000F
+Truly random items, but sometimes you get no item
+
+
+8107AFD8 0C0F
+8107AFDA FFC0
+813FFF00 3C1B
+813FFF02 8019
+813FFF04 8F7B
+813FFF06 D3FC
+813FFF08 001B
+813FFF0A D903
+813FFF0C 3362
+813FFF0E 000F
+813FFF10 1002
+813FFF12 FFFD
+813FFF14 2400
+813FFF18 03E0
+813FFF1A 0008
+813FFF1C 2400
+
+
+8007AFD8
+JAL 803FFF00
+
+803FFF00
+LUI $K1, 8019
+LW $K1, D3FC($K1)
+
+notzero:
+SRA $K1, $K1, 4
+ANDI $V0, $K1, 000F
+BEQ $V0, $zero, notzero
+NOP
+
+JR $RA
+NOP
+Truly random items

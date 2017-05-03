@@ -1,0 +1,88 @@
+Mario Raceway segment 4 begins at 0x80277730. In the MIO0 file, all vertices are 14 bytes, with alpha 0, but in memory, they're 16 bytes, alpha 0xFF. why is this?
+
+0x802A879C is writing the alpha value (T2=0xFF) at the end of a routine.
+Looks like it's hardcoded at 802A86E8: ADDIU $T2, $zero, 00FF
+but I'm sure there are some courses not using alpha 0xFF?
+changing this doesn't appear to do anything - the courses just aren't using this value...
+(i.e. alpha is disabled)
+although the back of a billboard in Mario Raceway seems to have vanished.
+
+looks like this routine begins at 802A86A8.
+2 params: A0=801E20A0 A1=167D
+A0 is pointing to the decompressed MIO0 file
+A1 is #vtxs
+it allocates some memory for the converted vtxs by subtracting the buffer size from the pointer at 8015F72C.
+input ptr is copied to $V0.
+it does a check if #vtxs == 0. I'd guess this is to skip the whole process...
+T0=800DC604; T1=800DC608; T2=FF (at 802A86E8)
+800DC604 is the mirror mode flag. 800DC608 = 3F800000...
+
+it reads a word from $T0 to $T4 and checks if it's zero (it is)
+BEQL $T4, $zero, +6
+LH $T8, 0000($V0)
+LH $T5, 0000($V0)
+SUBU $T7, $zero, $T5
+BEQ $zero, $zero, +3
+SH $T7, 0000($V1)
+this is negating coordinates or something for mirror mode.
+strange, since the note for this code says setting the flag does *not* flip
+level geometry.
+
+it stores the X coordinate.
+A2 is incremented and checked against #vtxs. the vertex in and out pointers are increased to the next slots.
+the Y coordinate is read and multiplied by the float at 800DC608.
+the Z coordinate is copied verbatim.
+the red and green values are ANDed with 0xFC, but not the blue?
+T9 = blue
+
+A0=red
+A2=red
+A3=green (none are ANDed with 0xFC yet)
+T7=A3 << 2
+T8=T7 & 0xC
+T5=A0 & 3
+T6=T5 | T8
+T9=T6 << 24
+T3=T9 >> 24
+halfword T3 is stored as ? below.
+
+T3 = (((red & 3) | ((green << 2) & 0xC)) & 0xFF)
+so it takes the low 2 bits of green followed by the low 2 bits of red
+
+ X    Y    Z    S    T   R  G  B  A
+0A17 001F FDB6 2319 03FF FC FC FC 00
+expands to:
+ X    Y    Z    ?    S    T   R  G  B  A
+0A17 001F FDB6 0000 2319 03FF FC FC FC FF
+
+fun: swap the texcoords
+802A8772 -> FFF8
+802A8760 -> FFFA
+
+bp at 802A86AC
+240A00FF8D0C00005180000684580000
+in ROM at 111CF8 = 802A86E8
+
+Renamon is best pony
+
+if we change the unused scaling parameter to 2 and load Rainbow Road, we get a crash with the third parameter actually used:
+5-800222F0-0F
+80042E50
+4600320D
+the last value is 8204.512695
+
+this scaling parameter seems to be DMA'd in and never changed.
+playing with it also shows us that each course has two settings defined:
+1) a "fall height" at which point the game considers you to have fallen out of bounds when you fall below this.
+2) a "water height" defining the level of some invisible water which you plunge into.
+these don't scale, so we end up dropping into invisible water and then being towed when we hit lower points on some tracks.
+some hills become unclimbable walls too, demonstrating that the check for what's a wall and what's not depends on its angle.
+
+as for the purpose of that extra parameter defined in the low bits of the red and green values, I have no idea...
+
+we should also hack it to swap the X and Z of all vertices...
+812A8706 0004
+812A870E 0004
+812A8752 FFF0
+802A8704 A46F000084580000A4780000844E0002 -> ROM 111D14
+ah no that just crashes it D:

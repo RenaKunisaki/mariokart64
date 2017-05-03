@@ -1,0 +1,59 @@
+Displaying text
+
+Using the colourful variable-width font:
+1) Set text colour: call 800930D8 with A0 set to desired colour:
+00=blue 01=green 02=red 03=yellow 04=cool transition through them, 05=same transition, 06+ = glitches
+
+2) Print: call 800936EC with:
+ A0: X pos (pixels)
+ A1: Y pos (pixels)
+ A2: Pointer to text
+ A3: Letter spacing (additional pixels between each letter)
+ Stack[0x10]: X scale (float)
+ Stack[0x14]: Y scale (float)
+The function returns as soon as it finds an unrecognized character. It can handle drawing outside the screen boundaries.
+
+
+Using the fixed-width debug font:
+1) Load the font, or something - call 80057710
+
+2a) Display a string followed by a number: Call 800577D0 with:
+ A0: X pos (pixels)
+ A1: Y pos (pixels)
+ A2: Pointer to text
+ A3: Number to follow
+
+2b) Display just a string: Call 80057484 with:
+ A0: Pointer to X pos (word)
+ A1: Pointer to Y pos
+ A2: Pointer to text
+ The stored coords are updated - X seems to be the X pos of the string end and Y is just + 0x14 (probably height of a line)
+
+2c) Display just a number: Call 80057524 with:
+ A0: Pointer to X pos
+ A1: Pointer to Y pos
+ A2: Number to display
+ A3: Numeric base
+ The number is a signed word. Hex works, but values > 0x7FFFFFFF will still show as negative.
+
+
+Drawing a box:
+Call 80098DF8 with:
+ A0: Seems to be the pointer to the framebuffer
+ A1: X pos (pixels) of left
+ A2: Y pos of top
+ A3: X pos of right (i.e. end X)
+ Stack[0x10]: Y pos of bottom
+ Stack[0x14]: Red
+ Stack[0x18]: Green
+ Stack[0x1C]: Blue
+ Stack[0x20]: Alpha
+ R, G, B, A are bytes (0-255), but parameters are always words.
+ 
+80098DF8(A0=probably VRAM dest, A1=X, A2=Y, A3=EndX, SP[10]=EndY, SP[14]=R, SP[18]=G, SP[1C]=B, SP[20]=A)
+
+800E5628 appears to be the mapping array for ASCII -> debug font char idxs
+patching the branch at 80057554 to be always true will make the number printing function unsigned
+there may well be an unsigned version somewhere too though
+
+"Load debug font" is actually doing some dlist commands, probably loading its texture

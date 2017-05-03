@@ -1,0 +1,1746 @@
+WHAT NEEDS FINDIN'/FIXIN':
+-See the notes in the bottom left screen about calculating the start position
+-Make Lakitu stop being a douchebag >8^(
+ -When he tries to put you on the ramps, he can't find the ground; maybe he's
+  chosen a point with no ground below it. Look at paths in DK Jungle and Royal
+  Raceway; are there points in the air over jumps? We might just be able to
+  delete those.
+-Improve position tracking if at all possible - may need to generate smoother paths
+-Test in various modes (ensure jumps can be made with all characters on 50 & 150cc)
+-Decoration:
+ -Do something with the floating faces
+ -BG images (see notebook)
+ -Images under track?
+ -Might render track twice - once with no textures and a fixed, low alpha value, and
+  once normal. Should produce a neat effect where you can barely see the rainbow
+  colours, and then there are fading stars on it. Would probably need to duplicate
+  the vertices for this to work since they'd have a different alpha value. Would also
+  need to modify the fade routine to set their alpha values at startup.
+  -Better yet, modify the vertex load routine to use the last colour byte as alpha.
+   Look into how the existing vertices' alpha is being set.
+ -Fix places where vertices don't quite line up and overlap
+  This is low priority because I'm not noticing any, so they're obviously not a big
+  deal
+-Map
+
+-How the Set Combine command works - it enables textures and alpha among other things
+ Just go to 801E3290 and play with the commands and see how the texture changes in realtime, it's neat
+-More about how dlist pointers, paths, and surface maps relate.
+ -Notice how the dlists work in Sherbet Land and Koopa Beach, drawing the ice walls/water separate from the
+  track. This suggests somehow two dlists are called; maybe one for the translucent objects and one for the
+  normal ones? This mechanism might be used for other missing things.
+  -It's probably just hardcoded. :-( In Mario Raceway there's a switch on the dlist ID. Here one is probably
+   being used to call another dlist.
+ -Paths: try changing coords but not ID, and try driving along what the new path would be instead of following
+  the course - what happens?
+-Need to trace the routines that generate the dlists in segment 1, so we can duplicate them. As it is they're
+ responsible for setting things like transparency on fences.
+ -Need to figure out the rest of the flags on Set/Clear Geometry RSP commands.
+-The viewer doesn't know how many dlist pointers tracks have, and will read to the end of the segment adding
+ them all. The game probably doesn't store this anywhere because it wouldn't need to. Might have to count them
+ manually and hardcode it. (Later move all the hardcoded shit to a config file!)
+-How battle course dlists work - no calls to 80290DAC. I would guess each one has a hardcoded call to 06:000000
+ somewhere. It might use the same routine for all 4 (would make more sense), but knowing this game, probably not.
+-Why does Toad's Turnpike have one dlist pointer in seg9? What is that? Just coincidence?
+-Why doesn't Bowser's Castle work in the expanded ROM?
+-Commands used in Moo Moo Farm
+-Sky in Choco Mountain and Banshee Boardwalk, and significance of last halfword in header
+-How to make fog (CM has some?)
+-Item boxes rigged to give specific items, like in Koopa Beach
+
+Also, the new track confirmed that if we end a path with 8000 0000 0000 0000, the one that follows it is used
+as an additional AI path, and the AI will follow it. But if we end with 8000 8000 8000 8000, no more paths
+follow, and the AI will behave normally.
+ 
+>l 06000000
+295964 3C0C0600 LUI $T4, 0600
+295968 258C0000 ADDIU $T4, $T4, 0000
+295990 3C0F0600 LUI $T7, 0600
+295994 25EF0000 ADDIU $T7, $T7, 0000
+2959BC 3C080600 LUI $T0, 0600
+2959C0 25080000 ADDIU $T0, $T0, 0000
+295A14 3C0E0600 LUI $T6, 0600
+295A18 25CE0000 ADDIU $T6, $T6, 0000
+maybe these are the hardcoded pointers for battle courses
+
+dlists in seg7:
+07:0004B0 giant pipe, inside
+07:000588 giant pipe, outside
+07:0008E8 entire pipe (parent of above two)
+07:000900, 07:000A08, 07:000B10, 07:000C18, 07:000D20, 07:000E28, 07:000F30,
+07:001038 fragments of shroom
+07:001140 entire shroom (parent of above)
+07:002B10 pipe inside again
+07:002B98 pipe outside again
+07:002D68 entire pipe again (parent of above two)
+07:006598 all grass (neat!)
+07:006710 low-poly pipe, capped ends, outside only
+07:0068B0 same as above? (parent of above)
+07:0068C0 entire track, but broken track textures - looks like old versions of level viewer
+07:006928 same as above? (parent of above)
+those are the last two dlists in seg7 so no surprise they look the same as old versions
+
+<random old notes>
+Ptrs at 8015025C:
+001263D0
+001978D0
+00214B00
+00277730 looks like vtx data, but 16 bytes? X, Y, Z, ??, txcoord, colour
+0025A5F8 textures
+001CCDA0 segment 5
+00270DF8 script output (segment 7)
+00000000
+001CCAA0 texture list, dlist ptrs
+00000000
+00000000
+00000000
+0019F940 graphics used in all levels (question mark etc)
+00000000
+001D65A0
+
+Function at 800400D0 is void DecompressMIO0(void* Data, void* Buffer) - Data points to MIO0 data, Buffer points to address to decompress to.
+
+C05228 - 1A80 (350)
+801D623C item box data
+801EC7E2 level script
+802B8D80 level header
+802AA934 reads it, copies to the stack (8015AADC)
+Looks like 802A7D70 reads from ROM, or at least reads the texture/RSP list:
+A0=0, A1=start, A2=end; returns location it was read to
+This calls 802A7D1C: A0=# bytes to copy, A1=address of last byte +1
+This routine grabs words from fixed addresses 8015F724 (000A2FB0), 8015F728 (801CCAA0)
+and modifies them based on the parameters passed, and doesn't appear to return anything
+Then, it calls 80001558: A0=Dest RAM address. A1=ROM address, A2=# of bytes.
+This routine copies data in from ROM.
+A0=801CCAA0 A1=88CD70 A2=300 A3=8015F728
+
+802AAA18 is getting the location of the beginning and end of level data into A0, A1, and
+calling 802A82E4
+It calls 80001158 (NOT 80001558): A0=801D65A0, A1=level data addr, A2=diff between start/end
+This loads the MIO0 file and level script to 801D65A0
+800400E4 looks like MIO0 decompression
+A0=801D65A0 (src), A1=801EEC50 (dest), A2=000186B0, A3=80284700
+
+80040110 reads the polygon data, copying it somewhere - ends around 80202700
+8026065A looks like it has some RSP commands
+this routine never finishes, it reads right on past the end of RAM...
+Looks like it begins at 800400D0, has to do with MIO0 decompression maybe? A0 points to an
+MIO0 file in RAM and it reads the header
+
+~800EB70C is debug text
+
+802AA808 is a loop that adds up the decompressed size of the textures
+note it checks if the entire first word is zero to stop, not the first (0F) byte
+
+Adding ANYTHING, even a line of zeros, to the texture list breaks it - looks like it's not
+accounting for these extra bytes when finding the dlist pointers.
+At 80290DF0, the address in RAM of those pointers - 801CCC90 - gets pushed to the stack.
+The texture list is at 801CCAA0, meaning the dlist pointers start 0x1F0 in. Where does this
+0x1F0 come from...?
+This is called from 8029280C
+80290DE0: T2 = T8 + T9; T8=texture list addr, T9=1F0
+This value is hardcoded:
+802927FC LUI $A0, 0900
+...
+8029280C JAL 80290DAC
+80292810 ADDIU $A0, $A0, 01F0
+not sure why the high byte is 9, but anyway... the 16 bytes here:
+AC4E00008FA500280C0A436B248401F0
+Occurr in ROM once, at FBE14
+this of course is in the checksum area, fortunately Nemu ignores that. (Holy shit! Something
+good about Nemu!) Yep, this is that hardcoded value alright, and changing it to 0x200 produces
+precisely the expected effects: glitches and a crash at the last point on the path. Yays!
+
+Sure enough, once we fix this, we can add a new texture and use it on our new polygon. W00t!
+
+command 0x27 might be writing a "jump to dlist" command
+
+dlist ptrs @ 801CCC90; Read at 80291180
+
+80295A6C LUI $T7, 800E
+[...]
+80295A88 LHU $T7, C5A0($T7) ;T7 = level #
+80295A8C SLTIU $AT, $T7, 0014
+80295A90 BEQ $AT, $zero, +0054
+80295A94 SLL $T7, $T7, 2
+80295A98 LUI $AT, 802C
+80295A9C ADDU $AT, $AT, $T7
+80295AA0 LW $T7, 9454($AT) ;AT=802C0000
+80295AA4 JR $T7
+80295AA8 NOP
+80295AAC JAL 80292464
+
+if(levelnum < 0x14)
+{
+	goto = word from 0x802B9454 + (levelnum << 2)
+	//...
+}
+call 80292464
+
+jump table at 802B9454:
+80295AAC 80295ABC 80295ACC 80295ADC
+80295AEC 80295AFC 80295B0C 80295B1C
+80295B2C 80295B3C 80295B4C 80295B5C
+80295B6C 80295B7C 80295B8C 80295B9C
+80295BAC 80295BBC 80295BCC 80295BDC
+
+;routine @ 80292464 - Mario Raceway
+80292470 LH $T6, 0038($A0) ;A0=8015F480; 8015F4B8=1 - current dlist ID
+[...]
+80292480 SH $T6, 0022($SP) ;T6=1
+[...]
+802925C4 LHU $T9, 0022($SP)
+802925C8 ADDIU $T4. $T9, FFFF
+802925CC SLTIU $AT, $T4, 0011
+802925D0 BEQ $AT, $zero, 8029275C 
+802925D4 SLL $T4, $T4, 2
+802925D8 LUI $AT, 802C
+802925DC ADDU $AT, $AT, $T4
+802925E0 LW $T4, 9390($AT) ;jump table at 802B9390
+802925E4 JR $T4
+802925E8 NOP
+
+T9 = SP[22]
+T4 = T9 - 1
+if(T4 >= 0x11) goto 8029275C
+T4 = word from (802B9390 + (T4 << 2))
+goto T4
+
+jump table at 802B9390:
+802925EC 802925EC 80292610 80292628
+80292660 80292660 80292694 802926C4
+802926C4 802926D8 802926F4 80292730
+80292750 80292750 80292758 80292758
+802925EC
+
+802925EC ADDIU $AT, $zero, 0002 ;$T4 points here
+
+80292600 JAL 80292764
+80292604 NOP
+80292608 BEQ $zero, $zero, 80292760
+8029260C LW $V0, 0000($S0)
+;repeat a bunch more of these
+
+;routine for Mario Raceway @ 80292764
+
+802927FC LUI $A0, 0900 ;segment #
+[...]
+8029280C JAL 80290DAC
+80292810 ADDIU $A0, $A0, 01F0 ;hardcoded offset for Mario Raceway
+
+;routine that calculates dlist pointer location and does something with it @ 80290DAC
+
+2927FC 3C040900 LUI $A0, 0900
+292810 248401F0 ADDIU $A0, $A0, 01F0
+29B400 3C090900 LUI $T1, 0900
+29B404 252901F0 ADDIU $T1, $T1, 01F0 <-- what's this one for?
+
+044004 3C010700 LUI $AT, 0700
+044058 34210100 ORI $AT, $AT, 0100
+0451C4 3C010700 LUI $AT, 0700
+045244 34210100 ORI $AT, $AT, 0100
+04555C 3C010700 LUI $AT, 0700
+0455B8 34210100 ORI $AT, $AT, 0100
+
+801D2308 path data (offs 0x5568)
+
+(this is probably the offsets that AI paths were manually found at in seg6:)
+00 5568
+01 4480, 4490
+02 4F90
+03 4578
+04 DC28
+05 34A0, 34B8
+06 ADE0, AE00
+07 B5B8, B6D8
+08 A540
+09 EC80
+0A 3B80
+0B 6AC8
+0C 4BF8, 4C08
+0D 19D0
+0E 56A0
+0F /
+10 /
+11 /
+12 71F0
+13 /
+
+8002A10C checks if surface type ($V1 copied from $V0) is not 0xFE.
+800F6A88 surface type you're on (16-bit)
+800F6A80 and 800F6A84 are related to height/Y speed
+800798FC reads surface type, compares to 0xFD (forbidden)
+8007AA6C looks like it's reading a jump table at ~800EED1C
+
+ROM E317C: Top Speeds for each character: 50cc, 100cc/tt(?), 150cc/battle(?)
+
+NumStartBalloons: 8106B86E (default 02) In ROM: 6C46E
+3C01801900095040002A08212408xxxx
+
+See also files:
+-MK64 Notes Aug 9
+-MK64 code file
+-2d object disassembly
+-Adding a polygon
+
+</random old notes>
+
+07:000000 [270DF8] Called from 07:0000E8 [270EE0]; starts @ 07:0000E0 [270ED8]
+>07:0000E0 [270ED8] Called from 01:01A6D8 [117F38]; starts @ 01:000000 [0FD860]
+>                   Called from 01:043248 [140AA8]; starts @ 01:01F7D8 [11D038]
+>                   Called from 06:009378 [1D6118]; starts @ 06:009348 [1D60E8]
+>                   Called from 07:000490 [271288]; starts @ 07:000478 [271270]
+>>07:000478 [271270] Called from 07:0004A0 [271298]; starts @ 07:0004A0 [271298]
+>>>07:0004A0 [271298] NOT FOUND
+>>>06:009348 [1D60E8] found in ASM:
+   2956D0 3C190601 LUI $T9, 0601
+   2956D4 27399348 ADDIU $T9, $T9, 9348
+   part of a switch that never runs
+   Seems to be a "master list" that renders everything, including the missing objects. Maybe for surface maps?
+   06:009650 is used by the first surface map, but it's not part of this one; this ends at 06:009490 [1D6230]
+   and then there's path data
+   This list appears to be unused, we can mess with it without breaking anything
+
+ 
+RSP Segment Map @ 8015025C:
+ 1 [0FD860]: ? (Swaps with 1263D0) - Frame buffer?
+ 2 [1978D0]: ?
+ 3 [214B00]: Some (not all?) 2D object graphics - trees
+ 4 [277730]: Vertices
+ 5 [25A5F8]: Textures
+ 6 [1CCDA0]: RSP File
+ 7 [270DF8]: Generated lists
+ 8 [000000]: Unused (mapped to address 0)
+ 9 [1CCAA0]: Texture list
+10 [000000]: Unused
+11 [000000]: Unused
+12 [000000]: Unused
+13 [19F940]: Related to HUD and 2D objects/sky
+14 [000000]: Unused
+15 [1D65A0]: Temporary storage?
+(Mario Raceway addresses)
+
+This should be all dlists executed on one frame of Mario Raceway.
+Todo: write a routine that, given a dlist location, traces it and logs the
+location of all subroutines and their depth, so we end up with a list like this
+as a tree. Then we'll know how it's all laid out.
+Looks like this isn't all of them, unless the bunch in seg1 don't get executed...
+0D0076F8 [001A7038]
+ Called from 01:01A370 [117BD0]; starts @ 01:000000 [0FD860]
+ Called from 01:01A7C0 [118020]; starts @ 01:000000 [0FD860]
+ Called from 01:01AE20 [118680]; starts @ 01:000000 [0FD860]
+ Called from 01:01AE40 [1186A0]; starts @ 01:000000 [0FD860]
+ Called from 01:01AE48 [1186A8]; starts @ 01:000000 [0FD860]
+ Called from 01:01AEE8 [118748]; starts @ 01:000000 [0FD860]
+ Called from 01:01AF10 [118770]; starts @ 01:000000 [0FD860]
+ Called from 01:01B240 [118AA0]; starts @ 01:000000 [0FD860]
+ Called from 01:01B3B8 [118C18]; starts @ 01:000000 [0FD860]
+ Called from 01:01B420 [118C80]; starts @ 01:01B3E0 [118C40]
+ Called from 01:01B558 [118DB8]; starts @ 01:01B448 [118CA8]
+ Called from 01:01B5C0 [118E20]; starts @ 01:01B580 [118DE0]
+ Called from 01:01B738 [118F98]; starts @ 01:01B5E8 [118E48]
+ Called from 01:01B848 [1190A8]; starts @ 01:01B760 [118FC0]
+ Called from 01:01B8A0 [119100]; starts @ 01:01B870 [1190D0]
+ Called from 01:01E718 [11BF78]; starts @ 01:01B8C8 [119128]
+ Called from 01:01E720 [11BF80]; starts @ 01:01B8C8 [119128]
+ Called from 01:01E728 [11BF88]; starts @ 01:01B8C8 [119128]
+ Called from 01:01E730 [11BF90]; starts @ 01:01B8C8 [119128]
+ Called from 01:01E738 [11BF98]; starts @ 01:01B8C8 [119128]
+ Called from 01:01EA20 [11C280]; starts @ 01:01E780 [11BFE0]
+ Called from 01:01EA28 [11C288]; starts @ 01:01E780 [11BFE0]
+ Called from 01:01EA30 [11C290]; starts @ 01:01E780 [11BFE0]
+ Called from 01:01EA38 [11C298]; starts @ 01:01E780 [11BFE0]
+ Called from 01:01EA40 [11C2A0]; starts @ 01:01E780 [11BFE0]
+ Called from 01:01EAA0 [11C300]; starts @ 01:01EA68 [11C2C8]
+ Called from 01:01EAA8 [11C308]; starts @ 01:01EA68 [11C2C8]
+ Called from 01:01EAB0 [11C310]; starts @ 01:01EA68 [11C2C8]
+ Called from 01:01EAB8 [11C318]; starts @ 01:01EA68 [11C2C8]
+ Called from 01:01EAC0 [11C320]; starts @ 01:01EA68 [11C2C8]
+ Called from 01:01F790 [11CFF0]; starts @ 01:01EB08 [11C368]
+ Called from 01:01F798 [11CFF8]; starts @ 01:01EB08 [11C368]
+ Called from 01:01F7A0 [11D000]; starts @ 01:01EB08 [11C368]
+ Called from 01:01F7A8 [11D008]; starts @ 01:01EB08 [11C368]
+ Called from 01:01F7B0 [11D010]; starts @ 01:01EB08 [11C368]
+ Called from 01:042EE0 [140740]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043330 [140B90]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043990 [1411F0]; starts @ 01:01F7D8 [11D038]
+ Called from 01:0439B0 [141210]; starts @ 01:01F7D8 [11D038]
+ Called from 01:0439B8 [141218]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043A58 [1412B8]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043A80 [1412E0]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043DB0 [141610]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043F28 [141788]; starts @ 01:01F7D8 [11D038]
+ Called from 01:043F90 [1417F0]; starts @ 01:043F50 [1417B0]
+ Called from 01:044060 [1418C0]; starts @ 01:043FB8 [141818]
+ Called from 01:0440C8 [141928]; starts @ 01:044088 [1418E8]
+ Called from 01:044240 [141AA0]; starts @ 01:044088 [1418E8]
+ Called from 01:044310 [141B70]; starts @ 01:044268 [141AC8]
+ Called from 01:044488 [141CE8]; starts @ 01:044268 [141AC8]
+ Called from 01:047288 [144AE8]; starts @ 01:0444B0 [141D10]
+ Called from 01:047290 [144AF0]; starts @ 01:0444B0 [141D10]
+ Called from 01:047298 [144AF8]; starts @ 01:0444B0 [141D10]
+ Called from 01:0472A0 [144B00]; starts @ 01:0444B0 [141D10]
+ Called from 01:0472A8 [144B08]; starts @ 01:0444B0 [141D10]
+ Called from 01:047590 [144DF0]; starts @ 01:0472F0 [144B50]
+ Called from 01:047598 [144DF8]; starts @ 01:0472F0 [144B50]
+ Called from 01:0475A0 [144E00]; starts @ 01:0472F0 [144B50]
+ Called from 01:0475A8 [144E08]; starts @ 01:0472F0 [144B50]
+ Called from 01:0475B0 [144E10]; starts @ 01:0472F0 [144B50]
+ Called from 01:047610 [144E70]; starts @ 01:0475D8 [144E38]
+ Called from 01:047618 [144E78]; starts @ 01:0475D8 [144E38]
+ Called from 01:047620 [144E80]; starts @ 01:0475D8 [144E38]
+ Called from 01:047628 [144E88]; starts @ 01:0475D8 [144E38]
+ Called from 01:047630 [144E90]; starts @ 01:0475D8 [144E38]
+ Called from 01:048300 [145B60]; starts @ 01:047678 [144ED8]
+ Called from 01:048308 [145B68]; starts @ 01:047678 [144ED8]
+ Called from 01:048310 [145B70]; starts @ 01:047678 [144ED8]
+ Called from 01:048318 [145B78]; starts @ 01:047678 [144ED8]
+ Called from 01:048320 [145B80]; starts @ 01:047678 [144ED8]
+0D007A60 [001A73A0]
+ 0D007A08 [001A7348]
+0D006940 [001A6280]
+0D006940 [001A6280]
+0D006940 [001A6280]
+07003508 [00274300]
+ 07003460 [00274258]
+ 07003388 [00274180]
+ 070032F0 [002740E8]
+ 07003258 [00274050]
+07003240 [00274038]
+ 07003150 [00273F48]
+ 07003060 [00273E58]
+070014A0 [00272298]
+ 07001438 [00272230]
+ 070013C0 [002721B8]
+ 07001348 [00272140]
+ 07001188 [00271F80]
+06000000 [001CCDA0]
+ 07001770 [00272568]
+ 070016D8 [002724D0]
+ 07001950 [00272748]
+ 070017D8 [002725D0]
+ 07005218 [00276010]
+ 070050E8 [00275EE0]
+ 07003AB8 [002748B0]
+ 07003C28 [00274A20]
+ 07004A68 [00275860]
+ 07004CB8 [00275AB0]
+ 07004BB8 [002759B0]
+ 07004B50 [00275948]
+ 07005BC8 [002769C0]
+ 070020B0 [00272EA8]
+ 07002138 [00272F30]
+ 070021C0 [00272FB8]
+ 07001EA8 [00272CA0]
+ 07001F30 [00272D28]
+ 07002340 [00273138]
+07000450 [00271248]
+ 070003D8 [002711D0]
+ 07000328 [00271120]
+ 070002C0 [002710B8]
+ 07000258 [00271050]
+07000240 [00271038]
+ 070001D8 [00270FD0]
+ 07000170 [00270F68]
+070000E0 [00270ED8]
+ 07000070 [00270E68]
+ 07000000 [00270DF8]
+07000160 [00270F58]
+ 070000F8 [00270EF0]
+0D001BD8 [001A1518]
+ 0D001AB8 [001A13F8]
+ 0D001B68 [001A14A8]
+06006A68 [001D3808]
+06006A68 [001D3808]
+06009330 [001D60D0]
+ 06009310 [001D60B0]
+  06009250 [001D5FF0]
+  06009190 [001D5F30]
+  060090C0 [001D5E60]
+ 060090B0 [001D5E50]
+  06009068 [001D5E08]
+0D0076F8 [001A7038]
+0D007D78 [001A76B8]
+ 0D007C88 [001A75C8]
+0D006940 [001A6280]
+0D006940 [001A6280]
+0D007B98 [001A74D8]
+ 0D007A08 [001A7348]
+ 0D0069B0 [001A62F0]
+  0D006940 [001A6280] <-- what's with this being called so much
+0D007AE0 [001A7420]
+ 0D007A08 [001A7348]
+0D0079C8 [001A7308]
+ 0D0078F8 [001A7238]
+0D008D58 [001A8698]
+0D008C78 [001A85B8]
+0D008C78 [001A85B8]
+0D008CD8 [001A8618]
+0D008C78 [001A85B8]
+0D008C78 [001A85B8]
+0D008D10 [001A8650]
+0D008C78 [001A85B8]
+0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8] <-- and this loop
+0D008E70 [001A87B0]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E70 [001A87B0]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E70 [001A87B0]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D008DB8 [001A86F8]
+0D008E48 [001A8788]
+ 0D008DA0 [001A86E0]
+  0D008C78 [001A85B8]
+0D0076F8 [001A7038]
+0D0076F8 [001A7038]
+0D0076F8 [001A7038]
+02007F18 [0019F7E8] <-- 2?
+0D0076F8 [001A7038]
+02007F48 [0019F818]
+0D0076F8 [001A7038]
+0D007CB8 [001A75F8]
+ 0D007C88 [001A75C8]
+0D008108 [001A7A48]
+0D007EF8 [001A7838]
+ 0D007ED8 [001A7818]
+0D007EB8 [001A77F8]
+0D008108 [001A7A48]
+0D007EF8 [001A7838]
+ 0D007ED8 [001A7818]
+0D007EB8 [001A77F8]
+0D008108 [001A7A48]
+0D007EF8 [001A7838]
+ 0D007ED8 [001A7818]
+0D007EB8 [001A77F8]
+0D008108 [001A7A48]
+0D007EF8 [001A7838]
+ 0D007ED8 [001A7818]
+0D007EB8 [001A77F8]
+0D0076F8 [001A7038]
+0D007FE0 [001A7920]
+ 0D007FB8 [001A78F8]
+0D008108 [001A7A48]
+0D007EF8 [001A7838]
+ 0D007ED8 [001A7818]
+0D007EB8 [001A77F8]
+0D007928 [001A7268]
+ 0D0078F8 [001A7238]
+0D006940 [001A6280]
+02007F18 [0019F7E8]
+0D0076F8 [001A7038]
+  
+Crash log for Koopa Beach:
+Level 6 header:
+RSP File	0x00842E40 - 0x0084ABD0
+VertexFile	0x008D8E50 - 0x008EC390
+Texture List	0x0088DB40 - 0x0088DC50
+Unknown 0x18	0x0F000000
+# Vertices	9376
+Vtx File Size	0x0F, 64888
+Script Output	45752
+Unknown 0x28	0x09000000, 0x00000000
+16 textures found.
+Assuming dlist pointers at end of texture list.
+0 dlist pointers found.
+Guessing dlist locations
+000 000000
+001 009290
+002 0145F0
+003 014AA8
+004 015208
+005 016610
+006 016AC8
+007 017228
+8 possibilities
+Decompressing MIO0 from 0x00842E40... Done.
+Decompressing MIO0 from 0x008D8E50... Done.
+Texture 0 @ 0x643B3C, 2048 bytes; Decompressing MIO0 from 0x00643B3C... Done.
+Texture 1 @ 0x66A3DC, 2048 bytes; Decompressing MIO0 from 0x0066A3DC... Done.
+Texture 2 @ 0x6855DC, 4096 bytes; Decompressing MIO0 from 0x006855DC... Done.
+Texture 3 @ 0x66DD38, 4096 bytes; Decompressing MIO0 from 0x0066DD38... Done.
+Texture 4 @ 0x643430, 2048 bytes; Decompressing MIO0 from 0x00643430... Done.
+Texture 5 @ 0x660D8C, 2048 bytes; Decompressing MIO0 from 0x00660D8C... Done.
+Texture 6 @ 0x6609D0, 4096 bytes; Decompressing MIO0 from 0x006609D0... Done.
+Texture 7 @ 0x668CFC, 2048 bytes; Decompressing MIO0 from 0x00668CFC... Done.
+Texture 8 @ 0x66CA98, 2048 bytes; Decompressing MIO0 from 0x0066CA98... Done.
+Texture 9 @ 0x66EBF0, 2048 bytes; Decompressing MIO0 from 0x0066EBF0... Done.
+Texture 10 @ 0x67BEE8, 2048 bytes; Decompressing MIO0 from 0x0067BEE8... Done.
+Texture 11 @ 0x67C1B8, 2048 bytes; Decompressing MIO0 from 0x0067C1B8... Done.
+Texture 12 @ 0x6822EC, 2048 bytes; Decompressing MIO0 from 0x006822EC... Done.
+Texture 13 @ 0x669570, 4096 bytes; Decompressing MIO0 from 0x00669570... Done.
+Texture 14 @ 0x67C8B8, 2048 bytes; Decompressing MIO0 from 0x0067C8B8... Done.
+Texture 15 @ 0x67CE7C, 2048 bytes; Decompressing MIO0 from 0x0067CE7C... Done.
+Parsing level script at 0x8E8BC8... 
+Buffer is 45760 bytes (5720 commands)
+Parsed 3920 script commands, output 5720 RSP commands
+Script ends at 0x8EC382
+Parsing surface map at 06:018FD8
+Read 2875 commands; found 105 surfaces.
+Reading path #0 from offset 0x00ADE0... Done.
+Reading object group #0 (Item Box) from offset 0x018E78... Done.
+Reading object group #1 (Palm Tree) from offset 0x018F70... Done.
+Reading object group #2 (Unknown) from offset 0x00ADE0... Done.
+Texture addr 05003800, dim 32x32, fmt 0, size 2: 2
+Texture addr 05006800, dim 32x32, fmt 0, size 2: 3
+Texture addr 05002000, dim 64x32, fmt 0, size 2: 4
+Texture addr 05007800, dim 32x32, fmt 0, size 2: 5
+Texture addr 05008000, dim 64x32, fmt 0, size 2: 6
+Texture addr 05000800, dim 32x32, fmt 0, size 2: 7
+Texture addr 05005000, dim 32x32, fmt 0, size 2: 8
+WARNING: "Unused" RSP command 05 AB 03 D3 01 E8 FF FE @ 06:0148E8
+cN64RSP::ParseDList(01:83FE7D): Segment not mapped
+WARNING: "Unused" RSP command 02 80 02 5B 02 3D 02 29 @ 06:014958
+WARNING: "Unused" RSP command 02 22 05 B0 01 43 F9 0D @ 06:014960
+WARNING: "Unused" RSP command 07 1C 07 16 06 E6 06 5D @ 06:014980
+WARNING: "Unused" RSP command 05 4B FD DE E6 98 EE A7 @ 06:014988
+WARNING: "Unused" RSP command 05 BB FD 65 F4 51 EB FD @ 06:0149F0
+WARNING: "Unused" RSP command 05 4B 0B C7 0E 3E 0B CC @ 06:014A00
+WARNING: "Unused" RSP command 05 59 FC 3D F1 CA E7 58 @ 06:014A08
+WARNING: "Unused" RSP command 07 49 0A 74 07 1D FF C4 @ 06:014A20
+WARNING: "Unused" RSP command 05 9B 06 C8 07 8C 07 D2 @ 06:014A40
+WARNING: "Unused" RSP command 07 1C 06 0A 03 12 FE 95 @ 06:014A58
+WARNING: "Unused" RSP command 05 1E 0B 0F 0D 46 0A 90 @ 06:014A68
+WARNING: "Unused" RSP command 05 F5 11 59 19 68 1C 76 @ 06:014AF0
+at this point it hangs, allocating a fuckton of RAM and having to be "killall -9"'d
+only happened once of course
+
+
+some random notes:
+Yoshi Valley has a dlist at 801CCC90 where Mario Raceway has its pointers, it
+starts at 801CCB90, just after the texture list at 801CCAA0
+at 80117920 looks like some init commands that set the segment pointers, 801CCAA0
+is a parameter to several of them, it actually looks like a bunch of display
+lists and each one sets this offset, but there's no End Dlist between them, so
+they'd have to be copied somewhere for that to make sense
+the last is at 80142BD0, but the list continues, there just aren't any more
+references here
+8015F734 = 801CCAA0, and some other interesting pointers next to it
+8018D1E0 = 801CCAA0
+this is seg 9, seg 6 is 801CCB90
+
+80117950: BC001806 001CCB90
+801404C0: BC001806 001CCB90
+Seg6 dump: B600000000002000FC127E24FFFFF3F9B900031D00553078B800000000000000
+This is decompressed from the RSP file as normal
+There are no pointers to Mario Raceway's dlist pointers.
+
+Seg6 dump as dlists:
+801CCB90: B6000000 00002000 Clear Geometry Mode
+801CCB98: FC127E24 FFFFF3F9 G_SETCOMBINE
+801CCBA0: B900031D 00553078 Set Other Mode L
+801CCBA8: B8000000 00000000 End Dlist <<< this suggests this is a subroutine of another list
+
+801CCBB0: B7000000 00002000 Set Geometry Mode
+801CCBB8: FC121824 FF33FFFF G_SETCOMBINE
+801CCBC0: B900031D 00552078 Set Other Mode L
+801CCBC8: B8000000 00000000 End Dlist
+
+801CCBD0: 06000000 06000000 Call dlist 06:000000
+
+Mario Raceway has 30 texture list entries, so the dlist pointers are at 09:0001F0
+0001F0 shows up a few times but nothing looks interesting; 090001F0 not at all
+but if this isn't stored somewhere and there are no pointers to the pointers then
+how does the game know where they are? Does it count textures every frame? Something
+don't add up here.
+
+
+8029E378: hardcoded... something
+
+Truncating the path by setting one of its points to 8000800080008000 doesn't appear to affect the game at all. The only possible way this makes sense is if the first path doesn't do much of anything and the location of _every_ path is hardcoded.
+ROM DD380/RAM 800DC780 holds many of these values in some strange format
+Looks like each track has 4 entries in this table, 06xxxxxx defining the offset into the RSP file, or 800DC778 for an unused entry. The battle courses have this value for all 4 entries. Yoshi Valley has 4 entries. Possibly one per mode or something?
+Changing this doesn't seem to do anything except break the demo a little (gets an item).
+ -this seems to be an emulator bug, the demo is often messed up
+Of course these values aren't read at all (TFE).
+DK Jungle has only one entry
+Looks like code at 8001018C references this, but it never runs
+
+Path tables from ROM:
+0DD380|06005568 800DC778 800DC778 800DC778|00 Mario Raceway
+0DD390|06004480 800DC778 800DC778 800DC778|01 Choco Mountain
+0DD3A0|06004F90 800DC778 800DC778 800DC778|02 Bowser's Castle
+0DD3B0|06004578 800DC778 800DC778 800DC778|03 Banshee Boardwalk
+0DD3C0|0600D780 0600D9C8 0600DC18 0600DEA8|04 Yoshi Valley
+0DD3D0|060034A0 800DC778 800DC778 800DC778|05 Frappe Snowland
+0DD3E0|0600ADE0 800DC778 800DC778 800DC778|06 Koopa Troopa Beach
+0DD3F0|0600B5B8 800DC778 800DC778 800DC778|07 Royal Raceway
+0DD400|0600A540 800DC778 800DC778 800DC778|08 Luigi Raceway
+0DD410|0600EC80 800DC778 800DC778 800DC778|09 Moo Moo Farm
+0DD420|06003B80 800DC778 800DC778 800DC778|0A Toad's Turnpike
+0DD430|06006AC8 800DC778 800DC778 800DC778|0B Kalimari Desert
+0DD440|06004BF8 800DC778 800DC778 800DC778|0C Sherbet Land
+0DD450|060019D0 800DC778 800DC778 800DC778|0D Rainbow Road
+0DD460|060056A0 800DC778 800DC778 800DC778|0E Wario Stadium
+0DD470|800DC778 800DC778 800DC778 800DC778|0F Block Fort
+0DD480|800DC778 800DC778 800DC778 800DC778|10 Skyscraper
+0DD490|800DC778 800DC778 800DC778 800DC778|11 Double Deck
+0DD4A0|060071F0 800DC778 800DC778 800DC778|12 DK's Jungle Parkway
+0DD4B0|800DC778 800DC778 800DC778 800DC778|13 Big Donut
+
+Removing the first entry from here in Mario Raceway seems to do nothing! The characters fuck up a bit in the demo but that seems to always happen for some reason. (Not emulating floats/random generator properly?) Even if we point it to 80151234 or 06000000 nothing seems to happen. This stuff might be used for the ending or something. (What's at 800DC778 anyway?)
+Changing the first path found here seems to also do zip.
+If we mess up the second path, it affects starting position, camera during end-of-race flyby, and AI. The game actually crashes if GP mode is started. In Time Trial and the intro demo you start somewhere waaaaay up in the air and waaaay off the course. Curious they're up in the air when I only changed the X coord - maybe because there's no surface map here.
+If we choose coords that are actually on the track, we do start in a different place, but besides the "Mario Kart" finish line banner being in the wrong place, the game works as normal - you get credit for a lap at the original finish line. You can see the banner over the wall from in front of the pipe even though it's not there anymore - when you get there, it's gone.
+Although I just noticed I edited the wrong column, so for even points I changed the coords, and for odd ones I changed the ID... let's try with both coords and ID changed on all points.
+This time it acts much more as expected. The game must keep track of the last point you passed, and expect you to pass in order (skipping a few if you can). When you start in Time Trial laps are counted as normal at the old spot, and you'll be stuck on lap 0 until you get there. The game can't track where you are until you pass the place the points were moved from. In GP mode, the camera starts at the old spot (probably at one of the last points) and then flies over to you. The AI is confused as hell, and you're stuck in first until you pass the old spot. The AI seems to simply follow the points in order, but if they stray too far from the path (as if they fell off the course), they warp back to the last place they were, so they never get anywhere. Some, however - the ones starting further back - will just go on like normal, follow the course, and then try to follow the path through the wall. During the end-of-race flyby, and occasionally during the race, they actually succeed at this.
+Basically looks like as long as the points aren't too far apart, the game will work fine. The game probably counts a lap when you pass the last point, and starts you at/in front of the first. Not sure WTF that first path is for, it doesn't seem to do anything.
+Let's try leaving the coords but changing the IDs. It loses track of where I am in that area - the progress thingy going around the screen shows me not moving, then jumping ahead - but everything else seems to work fine. It might be using these IDs, not point indices, to tell how far I am along the track.
+
+Have not tried driving directly along what would be the new path instead of following the course as normal, or changing coords and not ID
+
+10798A seems to be code that loads 5568 into a register
+
+I wonder how it figures out the times the AI players should finish at even if you finish instantly? Does it have approximate course times stored somewhere?
+Maybe it's based on Time Trial records?
+
+
+header offset 0x24 may well be the amount of memory to reserve for RSP commands generated by the script.
+reducing it makes things disappear. adding script commands corrupts the fences as if the added RSP commands
+overwrote them in memory, but increase this by 0x100 and no more corruption!
+
+what about memory allocation for 2D objects, paths, etc?
+
+8029E378: hardcoded AI path offset (Mario Raceway) and some other parameters
+actually this routine seems to run for every track, and shortly after this it jumps to track-specific locations
+this could be a crazy coincidence, I don't see other tracks' offsets nearby
+
+Worth noting: set viewer to path #1, auto-direction, and notice how nearly every point with a new ID is on a boundary of visible polygons;
+if you advance dlists every time you pass one, it renders almost perfect, though it looks like it gets ahead at some point and isn't calculating
+directions quite correctly (notice a big chunk of grass missing near the mushroom, that if you look toward it it appears).
+Although it could just be that the game runs at a lower resolution in which that area would be off the screen anyway.
+
+
+Essentially the game does something like this:
+glNewList(whatever, GL_COMPILE);
+for(i=0; i<NumCommands; i++)
+switch(Command[i])
+{
+	case 0:
+	//...
+	break;
+	...etc...
+}
+glEndList();
+Since standard GL doesn't let you simply import and export display lists you need to regenerate them from your own format like this. However you can do other things between
+glNewList() and glEndList(); things that don't relate to GL at all, such as setting game mode variables.
+
+[quote=rstewart215804]The music in Mario Kart however can most likely be transferred between freely to SM64 and vice versa. The MK master music controller is at 0x803B1508. I also found the Rom location for these songs…
+
+BCB120 LUIGI, MARIO, ROYAL RACEWAY / WARIO STADIUM
+BCCB30 MOO MOO FARM / YOSHI VALLEY
+BCE7D0 CHOCO MOUNTAIN / BATTLE
+BD0740 KOOPA TROOPA BEACH
+BD2620 BANSHEE BOARDWALK
+BD3CF0 FRAPPE SNOWLAND / SHERBERT LAND
+BD60C0 BOWSER'S CASTLE
+BD78C0 KALIMARI DESERT
+BDC350 STAR ROAD
+BDF640 D.K'S JUNGLE PARKWAY
+BE01B0 TOAD'S TURNPIKE
+
+The only snag I found with trading songs is somewhere there are several pointers that tells where songs start and stop. I don’t know where this table may in the Rom, but in the ram it is at 0x801CFE00. After all the controllers at 0x80226B4C there is a bunch of pointers, which point to the song table, 2 instrument tables, and some other things.[/quote]
+
+
+Patch to use upper 4MB for track resources:
+0x113FBA -> 0x8080 (from 0x8028)
+0x113FCE -> 0x00 (from 0xDF)
+
+Patch to disable checksum validation:
+0x688 -> 0x00000000
+
+Patch to remove hardcoded music selection:
+Change 0xF82D8 to: 000F0900000F794001E178253C01802C002F08210C0323AB80248DAF1000002D8FBF0014
+from: 000F78803C01802C002F08218C2F920401E00008000000000C0323AB240400031000002C
+This patch makes the last byte of the header the song ID. Also, the next 0xB0 bytes after this area (starting at 0xF82FC), and the 0x50 bytes at 0x122814, are no longer used and can be overwritten. They're loaded to RAM at 8028ECEC and 802B9204 respectively. You should fill them with something like FF or AA so they're easily recognizable.
+
+Instead of that though, should turn the last word into an RSP address, pointing to where info such as the track # can be found. Would have to hack the routine that uses the upper halfword - IIRC there's only one - to support this. Then we can put this info into segment 6 or 9 and not have to deal with extra tables and shit, and have easy expandibility.
+The track # might be 32-bit also, so future hacks could use it as an address to find music at instead
+
+Stuff that should be in this data block:
+-Whatever that last word is for right now
+-Song # (or address)
+-Pointers to ASM (RSP addresses) to be executed on various events - every frame, on lap complete, on item box hit, etc
+-Gravity adjust (add this value to gravity constant or just override it)
+-Player weight/max speed adjust
+-All hardcoded shit like path/item box locations, whether to hide top 4, etc
+-Battle course flag
+-Battle mode start coords, for playing battle mode on race courses
+-Items (bananas, shells, etc) that are on the track at the beginning - pointer to struct array
+ -I don't think there's a built-in mechanism for this (none of the tracks use it), so no hurry.
+  -What about the item box above the rock in Koopa Beach?
+-AI clipping distance (how far away the AI has to be to start automatically following the path
+ instead of actually driving)
+-ROM address of file: copy/decompress from ROM...
+ ...to RAM address
+ ...to RSP address
+  -one specifically for segment 15? It's not used during the game, so it'd be a good place to store stuff, that would be loaded after parsing the surface maps.
+   it probably would be necessary to allocate some more memory for it though, as I'm pretty sure it points to the actual surface maps, and not a copy.
+ ...to free memory using game's allocator - store pointer somewhere that it can be found later
+ ...to specific RAM addresses, e.g. overtop of object data block, to set item boxes/trees/etc
+ all at once and things like bananas that can't normally be set
+-Same using an RSP address
+-First byte of address might tell whether it's a ROM address (B0/B1), RAM (80), or RSP (01-0F).
+
+This block should be copied to a fixed memory location (maybe right at the end) to reduce the amount of code necessary to access it.
+
+Also, should make a hack so that boost ramps slowly accelerate you, ignoring your maximum speed. Hehehe.
+
+FUNFUN HACK IDEA: when on boost ramp, distort texcoords to stretch the image as you accelerate, to simulate motion blur.
+-for multiplayer, I guess it'd just be like if player 1 is on a boost ramp, use his speed, else if player 2 is on one use his, etc.
+ You can't slow down on the ramp anyway so it's not likely one player is going to be in a position where they'd notice it stretching
+ when they're not at about the same speed.
+
+todo:
+-Commands 2E-30 are missing; are they on the laptop? They seem to be unused anyway
+-See what commands 15, 16, 17, 18, 19, 2E, 2F, 53, 54, 55 do with the last header word ($S2)
+-Document this shit
+-Find out how commands 1F, 25, 28, 30 parse their parameters
+-Figure out what commands do
+
+Hack ideas:
+-More battle mode options
+ -Capture The Flag - flag in middle of battle course at start, touching it picks it up;
+anything that would cost a balloon makes you drop it. Whoever has it at the end or has
+  held it the longest wins.
+ -Timed matches - like SSB (timed stock or timed score) - show race timer somewhere,
+  counting down
+  -Stock would just be the usual balloon system, and whoever has the most balloons at the
+   end wins; sudden death might be a quick race or something
+  -Score: don't draw balloons, start everyone with 0x7FFFFFFF ballons, show how many times
+   you've got hit on the screen (0x7FFFFFFF - numballoons); lowest score wins.
+   The traditional way, where you get a point for wiping someone out and the highest score
+   wins, would be more difficult to do - have to know, when someone hits a shell/etc, who
+   fired it.
+   -Doesn't it play the character's voice clip? So it must know.
+ -On track select screen, CL/CR cycle through cups; replace explanatory text with simple
+  text menu (can move cursor up to it), i.e.:
+   Mode: [Stock/Timed]
+   Stock: 3
+   Time: 5m 0s
+-Bomb karts respawn
+ -Bomb karts are driven by AI? Would need some paths for it to randomly take.
+  -Might home in on nearby players, though this might result in them driving into walls and
+   holes
+-Multiplayer time trial: Like VS mixed with TT - no items, bombs, etc like in TT; players
+ can't run into eachother (like ghosts)
+-In Time Trial, show 1st/2nd/etc if you're beating that time, and show that time below the
+ timer
+ -Ability to play Time Trial and Battle modes in mirror mode.
+  -Time Trial is normally 100cc, while mirror is 150cc, so would have to hack that to keep
+   the times fair.
+-Can discard items by pressing L (L adjusts music only when paused)
+-Can throw any shell backward
+-Animations by adjusting vertex/texture coords
+ -Flying platforms that you can hop on and ride, or moving obstacles - the surface map
+  follows vertex changes.
+-Show numeric speed on speedometer
+-Improved lap counter that isn't an ugly hack - modify the original routine to check for
+ starting lap & be able to show more than 1-digit numbers (at least 2)
+ -Use text routine, as used for "replay" text
+-Loops/corkscrews using magnets as discussed on xkcd - hack gravity vector
+ -See if it can be hacked to allow you to drive right up a wall
+  -Build a track with a parabolic slope to see what happens as you drive up it
+
+Eventually the editor should be able to add texture animation hacks; 2 methods could be
+provided:
+-Full swap: animate by swapping seg5 pointer. (Data block described above points to one
+ or more additional texture lists, each of which loads textures to another frameset.)
+ Advantages:
+ -No limit to number of simultaneous animations
+ -No additional CPU usage
+ Disadvantages:
+ -All animations must have the same speed and number of frames
+ -Heavy RAM usage (must make a copy of every texture for every frame)
+-Partial swap: animate by copying GFX data into seg4.
+ Advantages:
+ -Virtually no limit to number of frames (low RAM usage).
+ -Different textures can have different animation speeds/frame counts.
+ Disadvantages:
+ -Heavy CPU usage (must copy entire texture every frame)
+ -Animations could tear/lose sync under heavy load (if not all new texture GFX
+  are uploaded within one frame)
+Custom ASM hacks could also be used to modify the display lists in RAM to change which
+textures they select; should be possible to automatically generate and insert the code
+to do this.
+
+
+Mario Kart 64 - Level Data Specification V1.3
+by HyperHacker, March 5th - October 18th 2006
+using Mario Kart 64 (U) [!].rom
+
+For the scope of this document, byte, short and word refer to 8, 16 and 32-bit values as they do in R4300 assembly.
+
+  #########################
+ # Change Log            #
+#########################
+Changes in V1.3 (NOT RELEASED YET):
+-Added information on several script commands.
+-Added AI path info.
+-Added surface map info.
+-Added Terminology section.
+-Updated How You Can Help section.
+-Added information on texture wrap modes. Removed Texture Mirroring from needed information (it's one of the wrap modes).
+-Added summary of unknown information.
+-Updated vertex data structure (texture coordinates).
+-Various minor updates.
+
+Changes in V1.2 (August 2nd 2006):
+-Updated 0x1A command.
+-Added texture information.
+
+Changes in V1.1 (July 25th 2006):
+-Removed "3D Motion" from the list of needed information, as I managed to implement it. :-)
+-Added "Finish Line Position" to the list of needed information.
+
+
+  ########################
+ # Terminology          #
+########################
+todo
+
+
+  ########################
+ # Level Headers        #
+########################
+The first header, for Mario Raceway, starts at 0x122390. Each header is 48 (0x30) bytes, or more accurately, 12 (0x0C) words.
+
+Wd Addr   Offs  Value      Description
+ 1 122390 [+00, 008284D0]: Points to an MIO0 file containing RSP commands, AI path data, and other useful things.
+ 2 122394 [+04, 0082B620]: Points to the end of the end of the above file.
+ 3 122398 [+08, 0088FA10]: Address of compressed file containing vertex data. Commands follow compressed file.
+ 4 12239C [+0C, 0089B510]: Address that commands end.
+ 5 1223A0 [+10, 0088CD70]: Points to a list of textures to be loaded and the RSP file offset list.
+ 6 1223A4 [+14, 0088D070]: Points to the end of the texture list.
+ 7 1223A8 [+18, 0F000000]: Changing to 0F000004 or 0F000008 distorts everything; 0A000000, 0E000000, 10000000 or 00000000 crashes.
+ 8 1223AC [+1C, 0000167D]: Number of vertices defined in the MIO0 file (pointed to at 122398).
+ 9 1223B0 [+20, 0F0096F4]: Size of compressed vertex file. The first byte seems to be ignored.
+10 1223B4 [+24, 00006930]: Size of RSP commands generated by the level script, minus 8.
+11 1223B8 [+28, 09000000]: Changing to 09000100 screws up textures. 09000001, 09010000 or 0A000000 crash.
+12 1223BC [+2C, 00000000]: Ignored?
+After this is Choco Mountain's header. The levels' internal order is:
+00: Mario Raceway      | 0A: Toad's Turnpike
+01: Choco Mountain     | 0B: Kalimari Desert
+02: Bowser's Castle    | 0C: Sherbet Land
+03: Banshee Boardwalk  | 0D: Rainbow Road
+04: Yoshi Valley       | 0E: Wario Stadium
+05: Frappe Snowland    | 0F: Block Fort
+06: Koopa Troopa Beach | 10: Skyscraper
+07: Royal Raceway      | 11: Double Deck
+08: Luigi Raceway      | 12: DK's Jungle Parkway
+09: Moo Moo Farm       | 13: Big Donut
+
+The header, in more detail (offset from 122390):
+00: This points to an MIO0-compressed file which contains several resources such as display lists, surface maps, 2D object/item box locations, and track paths. The contents of the file are loaded to RSP segment 5 (todo: not 5; 6?) and referenced by various offsets, many of which are hardcoded.
+04: Points to the end of the file pointed to at offset 00.
+08: This points to an MIO0 file containing vertex data. Immediately following the file is the commands which construct a level from this data. Also, the bytes 00 88 FA 10 can be found at address 0x122734. I'm not sure what purpose they serve.
+0C: This points to the end of the level commands.
+10: This points to a list of textures to be loaded; see the section on textures for more information.
+14: This points to the end of the texture list.
+18: Unknown; changing it to 0x0F000004 destroys everything - no polygons (big mess of garbage), no surface map, no 2D stuff.
+1C: The number of vertices defined in the vertex data file. This must be set correctly so that the game knows how much memory to allocate, although you can generally get away with having it bigger than necessary.
+20: Size of the compressed file pointed to by word #8. I'm not sure why the high byte is 0x0F but it's probably best to leave it that way for now. The game uses this to determine where the level commands begin, which should be immediately after the file.
+ todo: could be the file and script are copied to segment 15. This value points to the script, so the game knows how much of the segment is free to overwrite after decompressing the file.
+24: Determines the amount of memory required by the RSP commands generated by the level script, in bytes. For some reason this seems to be 8 less than the actual number of bytes needed. Again, this has to be set correctly, but setting it higher usually won't hurt anything.
+28: Unknown, changing it to 0x09000100 makes the game use the wrong textures; most are garbage, some are textures from elsewhere in the level. Other changes crash the game. Segment 9 holds the texture list, and it looks like if we change this to 0x09000010, all texture IDs are offset by 1 (0x10 being the size of a list entry). So this would seem to be the location at which the RSP looks for the texture list.
+2C: Doesn't appear to do anything. This value is zero in every track except Choco Mountain and Banshee Boardwalk (01 and 03) in which it's 0x00010000.
+
+You can repoint the level data by changing the values at offsets 0x8, 0xC and 0x20. The game has no problem accepting data appended to the end of the ROM (past 0xC00000) or MIO0 files larger than 64K.
+
+Around 802AA9A0 reads the header onto the stack, it only reads the upper half ot the last word. Nothing appears to ever read the lower half.
+802AAA48 reads this. It's doing something in the level script routine.
+
+todo/note: 0x18, 0x20, 0x28 - the high bytes are probably ORed with something. The value is a single byte, but the game needs it as the high byte of something, so they just stored it as a word, rather than storing it as a byte and shifting it. That is, the low bytes of 0x18 and 0x28 don't really "do" anything, they're just there for a slight speed optimization and need to always be zero.
+Interesting too, every track has the same values.
+
+
+  #############################
+ # Track Loading & Rendering #
+#############################
+The tracks are made up of four resources: a series of display lists that draw the graphics, a set of paths that players are to follow, a set of surface maps that provide collision detection, and object data that defines non-static objects such as item boxes and 2D sprites.
+
+To fully understand the game's inner workings it is necessary to understand the RSP - the graphics coprocessor, and the F3DEX microcode used by the game. The RSP shares main RAM with the CPU, but uses a different addressing system. The high byte of all pointers is a segment number, and the low 3 bytes are the offset within that segment. At 0x8015025C in RAM is the base address of each segment, starting with #1. Note that these are physical addresses, so the high bit is not set. So for example 0x06000004 means byte 4 in segment 6, or 4 bytes from the address pointed to at 0x80150270. (todo: verify all these addresses.)
+
+These pointers are actively used by the RSP, so by changing them one can relocate a segment at any time. This can be used for texture animation. The game does not appear to use this technique. (todo: does this work on real hardware?)
+
+The procedure to load a track from ROM is as follows:
+1) Read the level header (0x30 bytes) from ROM. (See the Level Headers section for location.)
+2) The first two words of the header specify a range to copy from ROM. The data here is a compressed file; decompress this to segment 6.
+   Note: when working with the original game it is safe to decompress this file directly from ROM, ignoring the end address in the header. However, you should not assume all hacks will specify this information correctly. (todo: the level viewer should obey this)
+3) The third and fourth words of the header specify a range to copy from ROM. This data is a compressed file followed by a script. Decompress the file into segment 4. The ninth word specifies the size in bytes of the compressed file, though note that the high word of this value is 0x0F.
+4) The fifth and sixth words of the header specify a range to copy directly into segment 9 - this data is not compressed.
+5) The eleventh word of the header specifies an RSP address. At this address is a list of textures to be decompressed from ROM; see the Textures section for more information. Decompress the textures into segment 5.
+6) Parse the script you loaded in step 3. Store the results in segment 7. See the Level Script section for more information.
+   Note: if we assume that in step 3, the data is copied from ROM to segment 15, then it appears the ninth word of the header is the RSP address of the script. (todo: check this)
+7) Parse surface map.
+8) Read paths.
+9) Read 2D objects. (todo: explain these last 3 steps.)
+
+Track rendering works as follows: each track has an array of pointers (RSP addresses) to display lists. The locations of these pointers are hardcoded:
+Track					PtrLoc   RetAddr
+00 Mario Raceway		090001F0 80292464
+01 Choco Mountain		09000150 80292C5C
+02 Bowser's Castle		090001D0 80292F00
+03 Banshee Boardwalk	09000170 80293224
+04 Yoshi Valley			060183F0 80295AEC
+05 Frappe Snowland		06007890 802935E8
+06 Koopa Troopa Beach	06019328 80293778
+07 Royal Raceway		090002C0 802939C4
+08 Luigi Raceway		09000290 80293BE0
+09 Moo Moo Farm			090001D0 8029413C
+0A Toad's Turnpike		060239A0 80294648
+0B Kalimari Desert		090001A0 80294890
+0C Sherbet Land			090000B0 80294A6C
+0D Rainbow Road			060164B8 80291ACC
+0E Wario Stadium		09000150 80294C74
+0F Block Fort			(todo)
+10 Skyscraper			(todo)
+11 Double Deck			(todo)
+12 DK's Jungle Parkway	06013D20 802954B4
+13 Big Donut			(todo)
+(RetAddr is the approximate location at which the hardcoded offsets are set in the code.)
+In most cases this is immediately after the texture list in segment 9.
+At this location is an array of display list pointers, one for each direction (North, East, South, West respectively) for each section of the track. The current section minus 1 (todo: is it determined by path or surface map?) times 4, plus the current direction, is the pointer index that gets called. The display list pointed to here draws the entire visible region of the track.
+In battle courses, there appears to simply be one display list, located at 06:000000, that gets called regardless of player position and direction.
+
+---------- old info follows - todo: clean up this crap
+The tracks are a series of display lists, called according to your current location. Some of these lists are copied directly from compressed files in ROM, while others are generated from a higher-level format (referred to as the "level script" here). The RSP does all rendering. Note that to fully understand the display lists requires some knowledge of the RSP. Mario Kart 64 uses the F3DEX microcode. RAM address 0x8015025C appears to be the RSP segment map, defining the RAM address of each segment, though note that the high bits of these addresses are not set. (todo: verify address)
+
+The first word of the header points to a compressed file, which we'll call the RSP File. This file is decompressed directly into RSP segment 6. It starts with a series of display lists stored as raw RSP commands, although theoretically its contents could appear in any order and even overlap.
+
+The third word points to a compressed file containing vertex data, which is decompressed to segment 4. Immediately following the file is the level script, which is not compressed. Command 0xFF terminates the script. The game uses the low 3 bytes of the 9th word in the header, plus the location of the compressed file, to locate the commands. Each of these commands generates one or more RSP commands, which are stored in segment 7.
+
+The fifth and sixth words point to the beginning and end of data that is copied to segment 9. This starts with a list of textures. Each list entry is 16 bytes and begins with 0x0F. An entry beginning with zero marks the end of the list, then 15 unused bytes follow. In many tracks, the display list pointers are located after this list.
+
+ After this is a list of offsets into the RSP File, each beginning with 0x06. The entries are 4 bytes (0x06, then a 3-byte offset), and are actually the first half of an RSP Display List command. (Placing other commands here will only serve to cause graphical glitches.) See the Texture List section for more information. The texture graphics are decompressed to segment 5 (see Texture List for info about decompression), and the list itself is copied to segment 9. (Todo: is it altered? Why does RSP need to know about the textures in ROM?)
+
+The RSP File also contains course path information. This information defines the path players must follow around the track. The paths are made from a series of points, each of which has a 16-bit ID and an X, Y and Z position in the track. Each track has at least two paths defined; one of unknown purpose and one defining the course. The latter is used to select a display list to render each frame. The game uses the direction you are facing (North, East, South or West) and the ID of the closest point on this path as an index into the list of offsets. The formula used to determine the list index is ((PointID - 1) * 4) + Direction, where Direction is 0 for North, 1 for East, 2 for South, 3 for West.
+
+Typically, the display lists in the RSP File will execute one or more commands, then call a list generated by the level script. Note that the only level script command provided to call a display list is hardcoded to use segment 7, so the generated lists can only call eachother. If a display list is corrupt, generally most of the screen will blank out, but the game will still run and things will go back to normal once you change direction or reach another point. Emulators, however, usually spew endless message boxes.
+
+Another resource contained in the RSP file is the surface map. This is the model which hit detection is performed against. The model itself is generated by reading and interpreting the display lists generated by the level script. It determines which type of surface each polygon is; for example pavement, out of bounds, or a boost ramp. Intangible polygons are simply those drawn in an area where there is nothing on the surface map. Theoretically, by generating display lists which are never called and having the surface map refer to them, one could create a surface map that does not match the visible polygons at all.
+
+By the looks of it, the starting point/finish line is always at X=0, Y=?, Z=0. The Y position varies. It may just set itself to the Y position of whatever polygon or path point is at X=0, Z=0. Exceptions to this are Luigi Raceway and Royal Raceway.
+
+Battle courses make some exceptions to these rules:
+-The starting point is not at 0,x,0. It may, however, be a fixed distance from the center.
+-There is no course path. It would appear that these courses have only one display list which is run every frame regardless of position.
+ todo: is it possible the 2D object data _IS_ used as a path? Do the point IDs increment?
+-There does not appear to be a surface map. Presumably, the track geometry itself is used, or the game simply reads every generated display list when making it.
+
+Essentially, the levels are not stored as models but as simply a series of display lists, and the game calls different display lists depending on your current location.
+
+RSP Segment Map @ 8015025C:
+ 1 [0FD860]: ? (Swaps with 1263D0)
+ 2 [1978D0]: ?
+ 3 [214B00]: Some (not all?) 2D object graphics - trees
+ 4 [277730]: Vertices
+ 5 [25A5F8]: Textures
+ 6 [1CCDA0]: RSP File
+ 7 [270DF8]: Generated lists
+ 8 [000000]: Unused (mapped to address 0)
+ 9 [1CCAA0]: Texture list
+10 [000000]: Unused
+11 [000000]: Unused
+12 [000000]: Unused
+13 [19F940]: Related to HUD and 2D objects/sky
+14 [000000]: Unused
+15 [1D65A0]: Temporary storage?
+(Mario Raceway addresses)
+
+#1: Swaps between 0FD860 and 1263D0 during play. No idea what it does. Notice it seems to change at the same rate as the twinkling of Wario Stadium's stars. It might point to a frame buffer.
+#2: If we change it during a Time Trial run of Mario Raceway, nothing happens, but if we change it on Wario Stadium, the game freezes.
+#3: Points to graphics. Only the trees in Mario Raceway seem to be here - if we change this pointer, they're the only things that break.
+#4: Contains the vertices decompressed from the file pointed to by word 3 of the header.
+#5: Contains the track textures, but not the 2D object textures.
+#6: Contains the data decompressed from the file pointed to by word 1 of the header. If we change this pointer not everything breaks - the giant pipe and shroom, fences, and audience stand remain intact, as do the 2D objects.
+#7: Contains the display lists generated by the level script. If we change it, all geometry breaks, but 2D objects don't.
+#8: Not used, at least not in Mario Raceway.
+#9: Contains the data copied from the ROM address specified by word 5 of the header. This is usually the texture list and display list pointers.
+#10, #11, and #12: Not used.
+#13: Relates to all orthographic polygons - sky, player, HUD. Not sure if it's graphics, vertices, dlists, or what.
+#14: Not used.
+#15: Points to the processed surface map data (i.e. the data the game generates from the surface maps in ROM), but doesn't actually seem to be used - you can point it anywhere and nothing breaks. Might just be temporary storage used during loading. If you break a track such that it no longer loads, you can often see an MIO0 file here.
+
+8, 10, 11, 12 and 14 could be used in some situations, but I've yet to see it.
+
+  #########################
+ # RSP File              #
+#########################
+The RSP file is decompressed into RSP segment 5 (todo: not 5) and contains a number of resources:
+-RSP commands and display lists which draw the environment, and graphics used by them.
+-Course map information, defining the paths players, cars, etc are to follow.
+-The locations of 2D objects, such as trees, and item boxes.
+-The information used to generate the surface map.
+
+It would appear that every RSP file begins with a series of display lists. These end with an instance of command 0 (which is still 8 bytes), except in Luigi Raceway where they end at offset 0xA540. Course path data (or 2D object data in battle courses) appears after the display lists. However, this is probably coincidental; the game probably has the locations of the course path data hardcoded and does not require the contents of this file to be in any specific order.
+
+
+Course paths:
+The path data is a series of structures, each defining a point. The points are joined in the order they are found in the file to create a path.
+
+X Coord, 2 bytes
+Y Coord, 2 bytes
+Z Coord, 2 bytes
+Point ID, 2 bytes
+
+If the X coordinate is 0x8000, the path ends and another begins. (Note that Y and Z coordinate and point ID are still present, but ignored, for this point.) If Y and Z coordinates are also 0x8000, the path data ends. (Todo: does the game actually check both?)
+
+Every course has at least 2 paths. The first, whose purpose is unknown, has few points (less than 100) whose Y coordinate and ID are always zero. The second has more points and point IDs gradually incrementing from 1. At the end of the race, when the camera flies around the track not following a character in the bottom corners, this is the path it follows.
+Yoshi Valley and Koopa Troopa Beach have 3 paths, because there are multiple possible routes through the course. The first two have few points and Y positions of all zero, while the third has more points with incrementing IDs as described above. Presumably, these paths (all but the last) define the route that is to be followed, and characters may freely switch between them.
+Worth noting is that in Yoshi Valley, the first path's point IDs are all 4, and the second's are all 7. In Koopa Troopa Beach, the first path's are all zero and the second's are all 7.
+Kalimari Desert and DK's Jungle Parkway also have 3 paths. In these tracks, the second path defines the course followed by the train and boat. Both the first and second paths in both tracks have point IDs of zero.
+
+The last path is used to select a display list from the table found after the texture list. The ID of the nearest point and the direction the camera is facing are used to select an entry from the table each frame. See the Texture List section for more information.
+
+Todo: list of path offsets
+
+
+  #########################
+ # Level Script          #
+#########################
+Vertex data is stored in the compressed file pointed to by the 3rd word of the header. The file contains a series of 14-byte structures, each of which defines a vertex:
+
+X Coord, 2 bytes
+Y Coord, 2 bytes
+Z Coord, 2 bytes
+Texture S coord, 2 bytes
+Texture T coord, 2 bytes
+Red tint, 1 byte
+Green tint, 1 byte
+Blue tint, 1 byte
+Unused (always 0), 1 byte
+
+Or as expressed in C:
+typedef struct {
+	short XCoord;
+	short YCoord;
+	short ZCoord;
+	short TextureCoordS;
+	short TextureCoordT;
+	unsigned char RedTint;
+	unsigned char GreenTint;
+	unsigned char BlueTint;
+	char unused;
+} MK64Vertex;
+
+You can view the data easily by decompressing the file and viewing it in a hex editor with 14 bytes per row. In RAM, this data is expanded to 16 bytes per vertex (todo: what's added?) and stored in segment 4.
+
+
+The level script is located immediately after the compressed file. Each command is one byte and may be followed by additional parameter bytes. The game generates RSP commands from this script, which are stored in segment 7.
+The following commands are defined:
+
+00 through 14:  Unknown, no parameters. Doesn't seem to do anything. [Unused]
+RSP Commands:
+BC000002 80000040 Set RSP Base Pointer; Table index 0, RAM area 2, address 0x80000040
+03860010 09000xxx ??? (x = (Command # * 0x18) + 8)
+03880010 09000xxx ??? (x = Command # * 0x18)
+
+
+15: Unknown, no parameters. Doesn't seem to do anything, but most likely turns something on/off. Used in Block Fort, possibly others.
+RSP Commands:
+FC121824 FF33FFFF Set Combine; muxs0=121824, muxs1=FF33FFFF
+
+
+16: Unknown, no parameters. Probably the opposite of 15.
+RSP Commands:
+FC127E24 FFFFF3F9 Set Combine; muxs0=127E24, muxs1=FFFFF3F9
+
+
+17: Unknown, no parameters. Seems to disable textures. Used in Block Fort, possibly others.
+RSP Commands:
+FCFFFFFF FFFE793C Set Combine; muxs0=FFFFFF, muxs1=FFFE793C
+
+
+18: Disables transparency. Seems to stay off until explicitly turned back on.
+RSP Commands:
+B900031D 00552078 Set Other Mode L
+
+
+19: Enables transparency.
+RSP Commands:
+B900031D 00553078 Set Other Mode L
+
+
+1A wx yz, 1B wx yz, 1C wx yz,
+1D wx yz, 1E wx yz, 1F wx yz, 2C wx yz: Sets texture information.
+ w: Image width. 2 to the power of w is the width in pixels. (2 << (w - 1) can also be used, which may be faster on some systems.) If w is greater than 6 or less than 1, the width is 64 pixels. (Todo: is <1 correct?)
+ x: S coordinate flags: xxxxxxww
+    x: Unknown.
+    w: Wrap mode: 0=repeat, 1=mirrored repeat, 2=clamp to edge, 3=unknown (apparently unused and I haven't tried using it yet).
+ y: Height, works the same as width.
+ z: T coordinate flags; same format as S coordinate.
+ Commands 1A, 1B and 1C specify an RGBA 5551 image. 1D and 1E specify an RGBA 3328 image. (Tip: if reading in reverse byte order, you can save some cycles by not swapping the bytes and treating it as ARGB 8332.) 1F is not used but I assume it also defines RGBA 3328. I am not yet sure, but it appears the difference between the three for each format is rendering priority; e.g. polygons using 1A have a higher priority than those using 1B. Notice in most tracks, the ground is a higher priority than the track itself. Consider what the areas would look like with no track vs with track only, and that these cases would likely only occurr for a few frames. The priorities are ordered to reduce the brokenness of the image.
+ It's worth noting that 1E is only used for the arrows on the walls in Banshee Boardwalk, and 1D is not used in this level at all. Possibly some other polygons, such as the ghosts, have a higher priority.
+ 
+Command 0x2C is only used in Moo Moo Farm, and appears to do something quite a bit different from the others, as interpreting it the same way results in very distorted textures. The parameter bytes are always 0x50, 0x52.
+
+Todo: could also specify culling. Also, old notes mentioned that swapping these in the ROM causes distortion; what exactly happens? Could be because the Choose Texture commands weren't swapped?
+
+The following code, decompiled from the ROM, is used to generate the RSP commands:
+Word 1 = 0xE8000000 (RSP Tile Sync)
+Word 2 = 0
+Word 3 = (((ImgType << 0x15) | 0xF5100000) | ((((ImgFlag2 << 1) + 7) >> 3) << 9)) | ImgFlag3 (Set Tile)
+Word 4 = (((((Param2 & 0xF) << 0x12) | (((Param2 & 0xF0) >> 4) << 0xE)) | ((Param1 & 0xF) << 8)) | (((Param1 & 0xF0) >> 4) << 4))
+Word 5 = 0xF2000000 (Set Tile Size)
+Word 6 = (((ImgFlag2 - 1) << 0xE) | ((ImgFlag1 - 1) << 2));
+(Presumably, the messiness of this code comes from the game being compiled with an optimizing compiler, and then from being decompiled from R4300 machine code.)
+
+Param1 and Param2 are the first and second byte respectively following the command. ImgType, ImgFlag1, ImgFlag2 and ImgFlag3 are derived from the following table:
+Command|ImgType|Flag1|Flag2|Flag3
+1A/20  |   0   |0x20 |0x20 |0
+1B/21  |   0   |0x20 |0x40 |0
+1C/22  |   0   |0x40 |0x20 |0
+1D/23  |   3   |0x20 |0x20 |0
+1E/24  |   3   |0x20 |0x40 |0
+1F/25  |   3   |0x40 |0x20 |0
+2C     |   0   |0x20 |0x20 |0x100
+The purpose of these values is not known, although it can be inferred that ImgType defines the image format (0=RGBA 5551, 3=RGBA 3328).
+
+
+
+20 tt xx yy, 21 tt xx yy, 22 tt xx yy,
+23 tt xx yy, 24 tt xx yy, 25 tt xx yy: Chooses a texture.
+ tt: Which texture
+ xx: Appears to be ignored.
+ yy: Unknown, distorts texture
+ These commands match up with 1A-1F; e.g., 1C is used with 22. I have not investigated what happens if they are mixed. Each of them use the same code, except they use a different temporary variable; most likely, 1A-1F check these variables.
+ Again, 25 is unused but is most likely the complement to 1F.
+
+Todo: or was it 1A-1F that all have the same code?
+
+The following code is used to generate the RSP commands:
+Word 1 = (ImgType | 0xFD000000) | 0x100000 (Set Texture Location)
+Word 2 = (Param1 << 0xB) + 0x05000000 (addition, not OR, is used here for some reason)
+Word 3 = 0xE8000000 (RDP Tile Sync)
+Word 4 = 0
+Word 5 = (((ImgType << 0x15) | 0xF5000000) | 0x100000) | (Param3 & 0xF) (Set Tile)
+Word 6 = (((Param3 & 0xF0) >> 4) << 0x18)
+Word 7 = 0xE6000000 (RDP Load Sync)
+Word 8 = 0
+
+ImgSize = (ImgFlag2 * ImgFlag1) - 1;
+if(ImgSize > 0x7FF) ImgSize = 0x7FF;
+
+X = (ImgFlag2 << 1) >> 3 (purpose of this value is unknown)
+if(!X) X = 1
+
+Word 9 = 0xF3000000
+Word 10= (((X + 0x7FF) / X) | (((Param3 & 0xF0) >> 4) << 0x18)) | (ImgSize << 0xC)
+
+Param1, Param2 and Param3 are the first, second and third byte respectively following the command. ImgType, ImgFlag1, ImgFlag2 and ImgFlag3 are derived from the table used by commands 0x1A-0x1F and 0x2C.
+
+Worth noting: Param1 << 0xB is the same as Param1 * 2048, which is the size of a 32x32 texture.
+
+ 
+26: Begin display list.
+RSP Commands:
+BB000001 FFFFFFFF Begin Display List (todo: is this correct?)
+
+
+27: Alternate begin display list.
+ This seems to do the same as 0x26. The Mario hat in Mario Raceway uses it. Not sure of its purpose. (Possibly for untextured objects.)
+ In some places, such as DK's Jungle Parkway, this command is not followed by an 0x2A command before the next 0x26 or 0x27 command, while all 0x26 commands appear to be followed by an 0x2A command. However, this may not be mandatory.
+RSP Commands:
+BB000000 00010001 Begin Display List
+
+
+28 xx xx xx xx:  Unknown. [Unused]
+RSP Commands:
+040681FF 04050500 Load Vertex
+(Todo: don't the parameter bytes have something to do with the generated RSP command?)
+
+
+29 tt tt: Draw triangle.
+ tttt is broken down into three 5-bit values: xaaaaabb bbbccccc (x is ignored). This value specifies the location in the vertex cache to read vertices from.
+Todo: sure the high bit is ignored? have you tried setting it?
+
+RSP Commands:
+BF000000 00ccbbaa Draw Triangle (a, b, c = vertex IDs, probably times 2)
+
+
+2A: End display list.
+Every 0x26 command appears to be followed by one of these eventually, although it should be possible to omit this and have one display list flow right into the next one, much like omitting a 'break' statement in C.
+RSP Commands:
+B8000000 00000000 End Display List
+
+
+2B xx yy: Call display list
+ yyxx: Address of display list, right-shifted by 3 (divided by 8). Display list must be in segment 7, which is where the lists generated by the level script are stored.
+RSP Commands:
+06000000 07aaaaaa Call Display List (a = address of list)
+
+ 
+2C xx xx: See command 0x1A.
+
+
+2D: Unknown, no parameters. Doesn't seem to do anything. [Unused]
+RSP Commands:
+BE000000 00000140 Cull DL
+
+
+2E:
+
+
+2F:
+
+
+30:
+
+
+31, 32: Noop. [Unused]
+ Doesn't do anything. The entry for these in the jump table actually points to the command parser, where other commands' code jumps to when it's done. Note however that since these commands do not generate any RSP commands, if you replace another command with one of these, all further generated RSP commands will be out of place, throwing off data that refers to them.
+ 
+ 
+
+33 xx yy, 34 xx yy, 35 xx yy, 36 xx yy,
+37 xx yy, 38 xx yy, 39 xx yy, 3A xx yy,
+3B xx yy, 3C xx yy, 3D xx yy, 3E xx yy,
+3F xx yy, 40 xx yy, 41 xx yy, 42 xx yy,
+43 xx yy, 44 xx yy, 45 xx yy, 46 xx yy,
+47 xx yy, 48 xx yy, 49 xx yy, 4A xx yy,
+4B xx yy, 4C xx yy, 4D xx yy, 4E xx yy,
+4F xx yy, 50 xx yy, 51 xx yy, 52 xx yy: Load vertices.
+ yyxx: Vertex number (offset into vertex file divided by 0xE, the size of a vertex).
+ These commands load vertex data into the vertex cache. The number of vertices loaded is the command number minus 0x32. The F3DEX microcode uses a cache of 32 vertices when drawing polygons; commands that draw polygons can only refer to vertices in the cache. Thus this command must be used to load the vertices before using the Draw Triangle or Draw 2 Triangles commands. It can help to think of these as simply setting an offset into the vertex file; the locations specified by the triangle drawing commands are added to this offset, and the vertex at this position in the vertex file is used. However, note that one could deliberately construct a script along these lines:
+ Load 3 vertices from offset 0
+ Draw a triangle using vertices 0, 1, and 2
+ Load 2 vertices from offset 0x100
+ Draw a triangle using vertices 0, 1, and 2
+ This script will draw 2 triangles: one using vertices 0, 1, and 2 from the vertex file, and one using vertices 0x100, 0x101 and 2. Since only 2 vertices were loaded on the third line, the third vertex in the cache was not changed, thus, the one loaded on the first line is used. If one were to treat these as an offset and ignore the cache, the second triangle would be rendered with vertices 0x100, 0x101 and 0x102. The game does not appear to do this, but a hacked version could.
+ Note that commands 33 and 34 are never actually used in the game.
+RSP Commands:
+0400bbbb 04aaaaaa Load Vertex (b=# of bytes of vertex data, a=address to load from)
+bbbb = ((Command - 0x32) * 0x410) - 1
+aaaaaa = yyxx << 4
+
+
+53: Unknown, no parameters. Doesn't seem to do anything. [Unused]
+RSP Commands:
+FCFFFFFF FFFCF279 Set Combine; muxs0=FFFFFF, muxs1=FFFCF279
+
+
+54: Disables transparency. Might do other things as well. [Unused]
+RSP Commands:
+B900031D 00442D58 Set Other Mode L
+
+
+55: Unknown, no parameters. Doesn't seem to do anything, probably enables transparency. [Unused]
+RSP Commands:
+B900031D 00404DD8 Set Other Mode L
+
+
+56: Unknown, no parameters. Doesn't seem to do anything. [Unused]
+RSP Commands:
+B7000000 00002000 Set Geometry Mode
+
+
+57: Disables culling. This command is only used twice, for an arrow sign in Frappe Snowland just past the Mario statue. I have not yet confirmed what triggers culling to turn back on; it may be turned on again when the display list ends, after a certain number of polygons are drawn, or not until explicitly turned back on by another display list.
+RSP Commands:
+B6000000 00002000 Clear Geometry Mode
+
+
+58 tt tt uu uu: Draw 2 triangles.
+ The parameters are the same as they are for 0x29, but there's two of them (tttt and uuuu each define a triangle a,b,c and d,e,f). This is generally used to draw rectangles, but the two triangles can be completely independent of eachother.
+RSP Commands:
+B1ccbbaa 00ffeedd Draw 2 Triangles (a, b, c = vertex #s of 1st triangle, d, e, f = vertex #s of 2nd triangle. Vertex #s are multiplied by 2.)
+
+ 
+59 to FE: Ignored. The command processor skips these commands, ignoring their (mostly invalid) entries in the jump table.
+
+
+FF: End script.
+ Note: Entry FF in the jump table is invalid. The command processor loop checks for this command explicitly.
+ 
+
+At 0x802A9B74 in RAM, you'll find the assembly code that processes the commands. It uses the command number as the index into a jump table at 0x802B9C94, whose contents are as follows:
+
+    x0   x1   x2   x3   x4   x5   x6   x7   x8   x9   xA   xB   xC   xD   xE   xF
+0x 9BB8 9BDC 9C00 9C24 9C48 9C6C 9C90 9CB4 9CD8 9CFC 9D20 9D44 9D68 9D8C 9DB0 9DD4 0x
+1x 9DF8 9E1C 9E40 9E64 9E88 9EAC 9EC8 9EE4 9F38 9F54 9FC4 A00C A030 A054 A078 A09C 1x
+2x A0C0 A0E4 A108 A12C A150 A174 A198 A1BC A1E0 A684 A714 A780 9FE8 A6F0 9F00 9F70 2x
+3x A6CC 9B74 9B74 A204 A228 A24C A270 A294 A2B8 A2DC A300 A324 A348 A36C A390 A3B4 3x
+4x A3D8 A3FC A420 A444 A468 A48C A4B0 A4D4 A4F8 A51C A540 A564 A588 A5AC A5D0 A5F4 4x
+5x A618 A63C A660 9F1C 9F8C 9FA8 A738 A75C A6A8 .... .... .... .... .... .... .... 5x
+    x0   x1   x2   x3   x4   x5   x6   x7   x8   x9   xA   xB   xC   xD   xE   xF
+The high word of each is 0x802A.
+In this routine, register $S0 points to the first command; $S0 + $V1 = command to be executed. After 0x802A9B7C, $T3 points to the command to execute.
+
+It should be possible to alter this table to add commands or add functionality to unused/noop commands. They need not generate RSP commands either; for example, they could simply change values in memory, perform conditionals, etc.
+
+
+  #########################
+ # Texture List          #
+#########################
+The 5th word in the level header points to a list of textures. The list is in this format:
+cc aa aa aa ff ff ff ff ss ss ss ss ?? ?? ?? ??
+c: Command #. 0x0F loads a texture, 00 marks the end of the texture list (note that the entry is still 16 bytes).
+a: Source address. This value is added to 0x641F70 to obtain the address of the texture file. Since it's 32-bit you can probably use some huge number to wrap around to values less than 0x641F70, but there's not much point. The reason for this is not clear, but note that the first such texture is located at this address.
+f: Size of the MIO0 file. This needs to be correct so the game knows how much to copy from ROM.
+s: Size in bytes of the decompressed texture data. This would seem to be redundant, as the game could simply use the output size in the header of each MIO0 file, but this would probably be slower.
+?: Seems to be ignored.
+
+Textures can be loaded in the following manner:
+1) Read the command number from each entry. Count the number of entries and add up the decompressed size of each. Stop when command #0 is encountered.
+2) Create a buffer the size of the total decompressed file size.
+3) Read the command list again, this time decompressing each file into this buffer, one after another.
+4) Read the buffer as a series of 32x32 images stored in 16-bit byteswapped RGBA 5551 format.
+
+Note: The texture format is a bit confusing due to what seems to be a bug/lazy coding in the game. Some textures are 64 pixels wide; you can identify them as having a decompressed size of 4096 bytes instead of 2048. Although you read them as a 64-pixel-wide image, you continue to loop through the array as if it were full of 32-pixel-wide images. The easiest way to handle this format is something like this:
+
+for(i=0; i<TotalFileSize; i+=2048)
+{
+	//...create a bitmap either 32x32 or 64x32 depending on Texture[i].DecompressedSize.
+	for(j=0; j<Texture[i].DecompressedSize; j++)
+		//...read the bytes at i+j and draw the corresponding pixels on the bitmap.
+}
+
+After any 64-pixel-wide texture, the next texture will be the bottom half of the previous image and the top half of the next. The game simply avoids using these texture IDs. All textures used by the game are either 32x32 or 64x32, but it may be capable of other sizes, keeping in mind the assumptions made when reading. Some hacking may be required for less than 32x32. I'm not sure if the F3DEX microcode supports anything greater than 64x64 or formats other than the ones used by the game, but this would require significant code changes, and the limited texture cache makes larger textures difficult to use. If you simply want to have a single large texture, such as a billboard, a workaround would be to divide it into several 32x32 or 32x64 images, each with their own polygon.
+
+
+After the texture list is a series of display list pointers. Each entry is 4 bytes in the format 06aaaaaa, where aaaaaa specifies the offset of a display list in the RSP File. There are 4 entries for every point ID used on the course path (starting at 1): one for North, East, South, and West respectively. The game uses the following formula to select an index from this table: ((PointID - 1) * 4) + Direction. PointID is the ID of the closest point on the path. Direction is 0 if facing North, 1 if East, 2 if South, 3 if West.
+The Coordinate Display code listed in the Gameshark Codes section of this document lets you see what direction and point ID are currently being used. Each frame the game uses this information to select an entry from this table, then executes the display list it points to in the RSP File.
+These entries are actually the first half of an RSP command (notice command 6 calls a display list), but putting other commands here will only cause graphical glitches or crash the game. This byte basically only exists to make the processing slightly faster, as it eliminates the need to add the 06 byte manually, and pads the offsets to 4 bytes each, which takes less instructions to deal with than 3-byte values would.
+(todo: is this true? Wouldn't it make sense if they're the *low* 4 bytes of an 06 command, calling lists in segment 6? I don't think the high bytes are used.)
+
+
+  #########################
+ # Surface Map           #
+#########################
+The surface map is the model against which collision detection is performed. Due to its format it is typically mostly the same shape as the level itself, although theoretically it could be completely separate. Each polygon in this model has a surface type, such as pavement, solid wall, boost ramp, or out of bounds, that determines what happens upon colliding with it.
+
+The surface map is located within the RSP file. The offset of each map within the file is hardcoded:
+00 Mario Raceway	0x9650
+01 Choco Mountain	0x72D0
+02 Bowser's Castle	0x93D8
+03 Banshee Boardwalk	0xB458
+04 Yoshi Valley		0x18240
+05 Frappe Snowland	0x79A0
+06 Koopa Troopa Beach	0x18FD8
+07 Royal Raceway	0xDC28
+08 Luigi Raceway	0xFF28
+09 Moo Moo Farm		0x144B8
+0A Toad's Turnpike	0x23B68
+0B Kalimari Desert	0x23070
+0C Sherbet Land		0x9C20
+0D Rainbow Road		0x16440
+0E Wario Stadium	0xCC38
+0F Block Fort		N/A
+10 Skyscraper		N/A
+11 Double Deck		N/A
+12 DK's Jungle Parkway	0x14338
+13 Big Donut		N/A
+The battle courses do not appear to have a surface map. Presumably, a map is automatically generated from every vertex of the level.
+802B94A4 is the jump table that sets these hardcoded offsets.
+
+The surface map is stored in the following format:
+Display list offset, 4 bytes
+Surface type, 1 byte
+Display list index, 1 byte
+Flags, 2 bytes
+The display list offset is an offset into the display lists generated by the level script. The first byte is an RSP segment number and thus should always be 7; it should be possible to specify any segment so long as it points to a valid display list, but the game does not appear to do this. The remaining 3 are an index into this segment. The game parses the display list looking for RSP commands 4 (Load Vertex), 6 (Call Display List), 0xB1 (Draw 2 Triangles), 0xB5 (Draw Line), 0xB8 (End Display List), and 0xBF (Draw Triangle). It emulates the vertex cache and when 0xB1, 0xB5 or 0xBF is found, it parses them to find the coordinates of each vertex being referred to and adds this polygon to the surface map model. This function ends when 0xB8 is found, and calls itself recursively when 6 is found to parse the display list pointed to.
+In theory one could create a surface map completely separate from the level itself by generating display lists that are never called, and pointing the surface map data to them. This would allow for invisible platforms and similar effects without wasting graphic processing power. Another method would be to directly embed these display lists in the RSP file and point the surface map to them.
+
+The surface map data ends when the display list offset is zero. (TODO: make sure it doesn't say the first byte elsewhere - the game does check the entire word) - check the viewer too
+
+todo: _does_ it emulate the cache? What happens if you do like load 3 vertices, draw a triangle, load 2 other vertices, draw another triangle? Does it handle this correctly? (also, the level viewer doesn't! But no sense "fixing" it when we don't know if the game does...)
+It probably doesn't because there's no need to; the game never does this anyway
+
+The surface type determines what happens upon colliding with the polygon. The following types are known:
+01: Solid. Used for pavement, tunnel walls and floor in Koopa Troopa Beach, and the track in Rainbow Road.
+02: Dirt track in several courses, edge of water pools in Royal Raceway.
+03: Dirt track used in Koopa Troopa Beach. Also used for the out-of-bounds beach sand.
+04: Cement.
+05: Snow track used in Frappe Snowland, and ice cave interior (except pillars) in Sherbet Land.
+06: Wooden bridges and guardrails, and the bridge to the castle in Royal Raceway.
+07: Dirt, off-road.
+08: Grass, both in and out of bounds.
+09: Ice, both in and out of bounds, used in Sherbet Land.
+0A: Beach sand used in Koopa Troopa Beach, that is sometimes underwater.
+0B: Snow, off-road.
+0C: Rock walls. Also used for the chocolate walls (and not the rock ones) in Choco Mountain.
+0D: Dirt, off road, used in Kalimari Desert.
+0E: Train tracks and the dirt surrounding them.
+0F: Interior of the cave in DK's Jungle Parkway.
+10: Rickety wood/rope bridges.
+11: Solid wooden bridges.
+FC: Boost ramp used in DK's Jungle Parkway. When driving on this surface your speed is locked to about 60km/h.
+FD: Out of bounds. Lakitu will pick you up when you land on this.
+FE: Boost ramp used in Royal Raceway. When driving on this surface your speed is locked and gravity is reduced.
+FF: Solid, as used for walls and the ramps in Koopa Troopa Beach.
+The most likely reason for the distinction between e.g. solid, pavement, and wood is so that the correct sound effects are played. (todo: test this.)
+Type 0xFD is interesting. Using a Gameshark code to override the surface type allows you to drive on the lone island in Sherbet Land, which is normally out of bounds, despite that it uses the same surface type as the track itself. The only surface that actually uses this type is the island in DK's Jungle Parkway.
+-Perhaps FC-FF are special cases, and the others tell it to refer to something else?
+
+Todo: check what happens if you run into a wall of types FE, FD, etc; check what speeds get locked to in each engine size for boost ramps.
+
+The display list index appears to be used to determine which display list to call. Exactly how this works in conjunction with the course path is unclear. The path IDs may be specifying a particular portion of the surface map to test for collisions with, in order to avoid unnecessary testing against far-away polygons, and the display list index of that portion specifies which display list will be called. More research is needed here.
+
+The flags' meanings are largely unknown. Only a few have been seen in the game:
+Bit 13: Used for the track in Luigi Raceway and Banshee Boardwak.
+Bit 14: Specifies whether the back of the polygon is also tangible. If not set, no collision detection is performed against the back of the polygon. This should not be set for polygons that the player should not be able to reach the back of, as it increases the amount of processing required and may allow the player to become trapped if they do manage to reach here.
+Bit 15: Used by the following surfaces:
+ Choco Mountain: Rock walls and guardrail
+ Banshee Boardwalk: Guardrail, house walls, bat box
+ Yoshi Valley: Guardrail
+ DK's Jungle Parkway: Guardrail surrounding boost ramp (not leading up to it)
+Notice most, but not all, of the polygons with bit 15 set use a transparent texture, and many others that use transparency do not have this flag set.
+The game checks all 3 of these flags in the same routine, and does not check the others there, which suggests that the other flags are ignored. However, they could be checked by another routine. The game does treat the two bytes as a single halfword.
+
+Curiously, there are some discrepencies between the surface maps displayed by the level and the actual results in-game. For example there appears to be no surface map on the giant pipe in Mario Raceway, a few walls are missing in DK's Jungle Parkway, and the top of the first bridge in Moo Moo Farm appears solid when it is not. These may simply be bugs in the viewer.
+
+The surface map data in RAM contains more information, which is largely undocumented. Each entry is 44 bytes:
+   00: Some sort of flag byte. Changing values here can cause different effects when you touch the polygon, such as tumbling.
+   01: Seems to specify a display list ID to render when touching this surface.
+   02: ?
+   03: Surface type.
+04-07: ?
+08-0F: Looks like coordinates, but only 2 dimensions. If we change these significantly, the surface (but not the graphics) disappears.
+10-1B: Pointers to vertex data. Changing these also makes it disappear. The coordinates of the surface polygon probably come from these vertices.
+1C-1F: ?
+20-23: Float related to gravity, normally 1.0. Changing this can make you slowly sink into the polygon, or fly into the air.
+24-2B: Related to Lakitu dropoff positioning?
+
+Sample data from part of the track in Royal Raceway, in front of the finish line:
+801DB2C0: 40010001 FF900000 FEC1FFF3 0000FFA1
+801DB2D0: 80272200 80272210 80272220 00000000
+801DB2E0: 3F800000 00000000 80000000
+
+From Mario Raceway, part of the giant mushroom:
+801D65A0: 20FFFFFF 08FF0000 FE0E091A 0014FE17
+801D65B0: 8027A260 8027A270 8027A280 00000000
+801D65C0: BED21B52 BF6973B0 C3DEF6FE
+
+Interesting differences, notice the gravity-related value is -0.410365 here, and the next two words are floats as well.
+This data is found in segment 15.
+
+
+  #########################
+ # Miscellaneous Data    #
+#########################
+Track order:
+At 0xF37B4 is the array defining the order of the tracks. The array is 16-bit (even though valid track numbers are only from 0 to 0x13) and defines Mushroom Cup, Flower Cup, Star Cup, Special Cup and Battle Mode in that order. Changing the order here changes the order the tracks are played in GP mode, the order they're listed, and the order they're shown on the Data screen, however, it doesn't change the order the track names are listed or the Time Trial times displayed on the track select. For example if you change Luigi Raceway to Rainbow Road, then you'll play Rainbow Road first in Mushroom Cup, and it'll show up in place of Luigi Raceway on the Data screen. On the Track Select screen, it will show Rainbow Road's picture, and selecting it will load Rainbow Road, but it will still say Luigi Raceway and show Luigi Raceway's times in Time Trial.
+Playing Battle Mode courses outside of Battle Mode has some interesting effects. In Time Trial you start in the middle of nowhere and get towed back to player 1's starting point; from there you can browse the track freely. I haven't tried VS mode, but it's probably the same as Time Trial. In Mario GP, if you don't play a race course first, every character will be Mario - the same happens if you skip round 1 via Gameshark codes, since the game won't initialize the AI. If you do, the game is almost playable in some cases. In Big Donut and Skyscraper, everyone starts in the middle of the course (notice on the map that the finish line is here), falls, and gets put back at player 1's starting point. This interrupts the race start sequence, so the game hangs. On Block Fort, the race starts, and you can play as normal, except the AI characters drive through the wall into oblivion and you never see them again. On Double Deck everyone starts below the floor and falls, but for some reason this doesn't interrupt the start sequence, so you can continue playing. The AI characters re-spawn in odd places; not at the player starting points, but not in random positions either. They don't move, but they animate as if they were driving. You can attack them, however, shells tend to get confused. Some characters re-spawn continuously. Also, the finish line can be seen in the sky. You can't advance laps in any battle course though.
+It might be possible to jump-start the race in Big Donut and Skyscraper by using debug mode; pressing Z or C-Down during the race start sequences forces the race to start. However there's no real point. The camera would also probably still be stuck.
+Also, showing a battle course on the Data screen shows garbage times. You probably shouldn't delete these, as they're actually other data from the game's save file.
+Playing a race course in Battle Mode almost works, except you must load a battle course first, then quit and load the desired track; otherwise, you'll start with no balloons. (You need to do this before each round.) Sometimes you'll fall off the track immediately and lose a balloon, but it's otherwise playable.
+
+Sky colours:
+At 0x1220E0 is a table of sky colours for each track. The sky is a two-colour gradient from top to bottom. Each entry in the table is two RGB values defining the top colour, then the bottom colour. The values are stored as xx RR xx GG xx BB; the purpose of the xx bytes is unknown.
+
+
+Useful Gameshark codes from BSFree (www.bsfree.org):
+800F6A4F 0000 - Player 1 can turn in midair
+800E86AC 0001 - Forced to select Time Trials \  Used together, these codes let you just keep hitting
+800E86A8 0002 - Always play as Yoshi          | A to go through the menus and not have to select
+800DC5A1 0000 - Always play on Mario Raceway /  anything.
+8108F494 03E0 +
+8108F496 0008 +
+8108F498 2400 - Climb hills; no tumbling
+D00F6915 0010 +
+810F69C8 4000 - R to levitate for player 1
+800F6A5B 0000 - Disable Lakitu (drive anywhere) for player 1
+8818EDEF 0002 - Press GS Button at title screen for debug menu
+810DC515 0001 - Coordinate Display (only when debug mode is on)
+81001630 2400 +
+81001634 2400 - Coordinate Display works when debug mode is off
+
+Also, with Jabo's Direct3D plugin, wireframe mode can be useful for seeing where each polygon ends. However, it looks like crap unless you set Direct3D Clear Mode to Always. (Per frame works, but glitches up in menus.) However, this sometimes blanks out the screen when you pause the emulator.
+
+At 80290DAC in RAM is the routine that each track calls to set the hardcoded locations of the display list pointers.
+
+
+  #########################
+ # How You Can Help      #
+#########################
+Although a really basic level editor could already be made from this information, more research is needed to make one that doesn't suck. Information is needed in the following fields:
+
+Commands
+Some commands are still not fully understood:
+-What commands 0 through 0x17 and 0x28 do.
+-How command 0x2C differs from the other texture commands.
+-The exact behaviour of commands 0x15, 0x16, 0x27, and 0x57.
+
+Textures
+I managed to figure out how the textures are loaded, but there are still a few things to find out:
+-The purpose, if any, of the last word in the texture data.
+-How transparency is set. (The fences in Mario Raceway use transparency; without it, the holes are filled in gray.)
+-How some textures are chosen, such as the track in Mario Raceway and Rainbow Road. (These seem to be set by the commands in the RSP file, but I have almost no information as to how these commands work.)
+
+Other polygon info
+There's still a few attributes of polygons not yet discovered:
+-Alpha blending. Some polygons such as the light beams in Bowser's Castle and nearly everything in Rainbow Road are alpha-blended (translucent). The colour information in the polygon data appears to be in the format RGBA 8888, but the last byte is always zero, so some other method must be used to indicate opacity.
+-Culling. Some tracks such as DK's Jungle Parkway and a few battle courses disable culling, which means the polygon is drawn no matter which side you're facing. This is most likely a per-track setting. No information regarding it has been found.
+Note that on most tracks, solid polygons are among the first objects defined, but in Frappe Snowland, the first object is a non-solid billboard. This means it can't simply be that the first x objects are solid. However, it could be that the first x polygons defined in the polygon file are solid.
+
+Sprites and other things
+-The hardcoded offsets of some objects such as penguins, thwomps, spinies, giant eggs, bats, ghosts, and other level-specific objects need to be found.
+-The balloon or big-screen TV in Luigi Raceway and Wario Stadium.
+-The fire breath from the Bowser statue in Bowser's Castle.
+-The guardrail in Choco Mountain (it disappears on higher difficulty levels).
+-Sound changes, such as the rattle when you drive over the bridge and the echo in the cave in DK's Jungle Parkway. (Todo: Are they determined by the point ID of the AI path? Or the surface map?)
+-How Sherbet Land's ice is reflective, and how the snow levels change the speedometer colour. (The game might simply be checking for those two levels in the speedometer drawing routine.)
+It's possible there is some sort of event system tied to the path points, or at least hardcoded checks for certain points on certain levels, that trigger things like sound changes.
+
+Track path definitions, AI, and staff ghosts
+More info on course paths is needed, such as how the game chooses a path for the characters and moving objects.
+Staff ghost information isn't necessary to make an editor, but it'd be nice to have. It'd probably be fairly simple to import saved ghosts from a memory card as staff ghosts, perhaps even title screen demos. With some work it's probably possible to have a staff ghost on every level, maybe even ghosts and AI on battle courses. The flybys in the ending and the trophy sequences are probably similar to the title screen demos.
+Also somewhat related to this, player start positions in battle mode need to be hacked. This could just be a fixed or per-track distance from the center.
+Lakitu drop-off points are also important, however, the game probably just uses the course path (drops you off at the last part of the track you touched).
+
+Finish line position
+Knowing how the game sets the finish line's Y position and width would add flexibility in level editing. The X and Z coordinates are always zero except in Luigi Raceway. The displayed width is fixed, but the actual width is more than this to prevent players from advancing or not counting a lap by driving around the posts, and this width may vary.
+It's worth noting that any time corruption of the ROM causes all polygons to be removed, players start way up in the air or underground. This suggests that the game simply uses the Y position of the ground to determine the starting location. However, some corruptions cause this without removing polygons.
+Todo: The course path may define this.
+
+Track type definitions
+The battle courses are somehow marked as being battle courses. This tells the game to load balloons for that course when playing in Battle Mode (in other courses it keeps whatever balloon count you had before), use a different starting point algorithm, and not display a finish line, lap counter, top 4 or progress indicator. Hacking this would allow other courses to be defined as battle courses, which with some ASM hacking would allow more than 4 battle courses. This would be at the expense of losing some race courses, but it shouldn't be too difficult to hack even more ASM and make it use battle configurations for all courses in Battle Mode, which would allow 20 tracks that could be played in all modes. Also, hacking this would allow the courses to be reorganized freely.
+There are a few possible ways the game might indicate a battle course:
+ -A bit in the header (doesn't seem to be the case)
+ -A level command (or the absence of one)
+ -Checking specifically if track 0x0F, 0x10, 0x11 or 0x13 is loaded (the battle courses) - DK's Jungle Parkway is 0x12, so it can't be just checking if the track # is > 0x0E.
+ -Checking which cup is selected - Battle Mode is considered a cup, at least on the Track Select screen.
+ -The presence of only one course path.
+Also, fog (as seen in Choco Mountain) has yet to be studied. Could be that unknown header value which is 0x10000 in Choco Mountain and Banshee Boardwalk and 0 everywhere else; IIRC these two tracks ignore the sky colours, possibly because fog is in the way.
+
+Luigi Raceway
+This course seems to be the only one that defies a few of the rules laid out in this document:
+-AI path data does not start after RSP command zero. It starts at 0xA540, immediately after an End Display List command (B8 00 00 00 00 00 00 00). The usual method of looking for command zero gets you part of path 1 and a completely garbled path 2 flying all over the world. This command always has all zeros for parameters, and is used many times in every course, so it is not a marker itself for the end of the data.
+-Position 0,0,0 is not the finish line; it's the corner of the audience stand nearby. You can see the line from here.
+It's possible the RSP commands or a special exception in the level loading routines manually modify the variables in memory that the game uses to tell where the finish line is and where to find AI data. However, the RSP commands contain only Display List, End Display List, Clear Geometry Mode, and Set Geometry Mode in this level.
+ 
+Maps and previews
+I know where and how each course's map is stored, but I can't find references to them. I also _think_ I know where the previews (shown on the track select) are stored, but I haven't looked for references to them.
+
+Music
+It'd be nice if we could choose which music each track uses, but I can't seem to find it. Here's a list of tracks; I used a Gameshark code to get them.
+00 - No music
+01 - Title
+02 - Menu
+03 - Raceway
+04 - Moo Moo Farm
+05 - Choco Mountain
+06 - Koopa Troopa Beach
+07 - Banshee Boardwalk
+08 - Snow
+09 - Bowser's Castle
+0A - Kalimari Desert
+0B - Mario GP start
+0C - Final lap
+0D - First place
+0E - Second - fourth
+0F - You lose
+10 - Race results
+11 - Invincibility star
+12 - Rainbow Road
+13 - DK's Jungle Parkway
+14 - ???
+15 - Toad's Turnpike
+16 - VS/Battle start
+17 - VS/Battle results
+18 - Retry/Quit
+19 - Big Donut/Skyscraper
+1A - Trophy ceremony, part 1
+1B - Trophy ceremony, part 2 (you win)
+1C - Credits
+1D - Trophy ceremony, part 2 (you lose)
+The only commands that only occurr once in Mario Raceway are 0x45 and 0x4E, both of which set the polygon base offset. 0x03 doesn't occurr in the header at all. Searching for the first 4 song numbers in order of the track hasn't found anything that looks right as 8 or 16-bit values, forward or backward, with the high byte as zero or 0xFF.
+Related to this, sound effects change in certain parts of the game; for example, in DK's Jungle Parkway, a different sound effect is used when driving on the bridge than when on the dirt road, an echo effect is heard in the cave, and boat and waterfall sounds can be heard at times. Nothing is yet known regarding how these sounds are selected, but I suspect it's determined by what polygon (or possibly texture) you're driving on.
+
+
+Summary of what is not yet known, ordered by priority:
+-The difference between the various texture commands (0x1A-0x1D, 0x20-0x23 etc).
+-How some textures (track in Mario Raceway/Rainbow Road) are set (probably by the RSP commands).
+-How texture transparency, alpha blending and culling are set on a per-poly/object basis (aside from the culling toggle commands, which are only used for one object).
+-How 2D objects are placed, as well as penguins, thwomps, Luigi Raceway's TV, DK Jungle's coconut zones and bridge sounds etc.
+-Why Luigi Raceway's and Royal Raceway's starting points are different.
+-Discrepancies in surface types, i.e. Sherbet Land's island being the same as the track but letting you drive on it if you override the type with a cheat, grass vs dirt, etc.
+-How the guardrail in Choco Mountain appears only on low difficulty levels.
+-How animated textures work (e.g. waterfall and boost ramp in DK Jungle).
+-Why Bowser's Castle is broken in the expanded ROM.
+-The meaning/format of the data in the RSP files between AI paths and graphics. (Seems to be animation-related.)
+-The meaning/format of the data after the graphics in the RSP files.
+-How the finish line height is chosen (likely the height of the path or polygon nearby; what if multiple polygons?)
+ -Or it uses the course paths...
+-How the game decides how far to let you fall before being out of bounds, and what happens when you do (e.g. fall in water, freeze, just fall, etc).
+-How the game knows which tracks are battle courses.
+-How Sherbet Land's ice is reflective.
+-How the game chooses a path for the AI and objects like trains, boats, chomps etc.
+-The meaning of the words at offsets 0x18, 0x24, 0x28 and 0x2C and the byte at 0x20 in a level's header.
+-The purpose of commands 0x15 through 0x19, 0x27, 0x2C and 0x57.
+-The purpose of the last 4 bytes of command 0xF in the texture list.
+-The purpose of the upper bytes of the sky colours, and why Banshee Boardwalk and Choco Mountain ignore them.
+-Battle Mode start positions.
+-How music is selected.
+-What texture wrap mode 3 is (the game doesn't use it).
+-How the game references course maps and previews.
+-How to change the order of the track names listed on the track select screen, and have the correct Time Trial times displayed when changing the track array.
+-Staff ghosts and course flybys, intro sequences.
+-How Frappe Snowland and Sherbet Land change the map and speedometer colour.
+
+
+  #########################
+ # Credits               #
+#########################
+Information discovered and documented by HyperHacker. Thanks to Cellar Dweller and VL-Tone for providing information about the RSP commands, BGNG for documenting the MIO0 compression format, and to many people who have submitted codes to BSFree.org; these codes made testing a heck of a lot easier. Tools used in this project include Nemu64, Project64, Mupen64, Mupen64plus, Textpad, Hex Workshop, Mozilla Firefox (Javascripts and tables are very useful), Niew, MinGW, SDL, OpenGL, Console (yes, it's actually a program named Console, not the OS' command prompt), Bless, KHexEdit, Geany, GCC, Notepad, Mousepad, Wordpad, Calculator, and gcalctool. (Whew!)

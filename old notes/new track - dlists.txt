@@ -1,0 +1,79 @@
+NEW DLISTS AT 0xC1929C (06:016580, 801E3080):
+BB000001 FFFFFFFF Begin Dlist - not entirely sure what this does, the 0x26 command writes it
+BA000C02 00002000 Set Other Mode H - not sure what these do, but if we don't
+BA001301 00080000 Set Other Mode H - do this, the matrix is messed up, and the
+B9000314 005049D8 Set Other Mode L - quad kinda follows us around O_o
+
+;Draw first several pieces
+04008200 0400C270 Load 32 vertices from 04:00C270
+B1040200 00060400 Triangle (0, 1, 2) (0, 2, 3)
+B10C0A08 000E0C08 Triangle (4, 5, 6) (4, 6, 7)
+B1141210 00161410 Triangle (8, 9, 10) (8, 10, 11)
+B11C1A18 001E1C18 Triangle (12, 13, 14) (12, 14, 15)
+B1242220 00262420 Triangle (16, 17, 18) (16, 18, 19)
+B12C2A28 002E2C28 Triangle (20, 21, 22) (20, 22, 23)
+B1343230 00363430 Triangle (24, 25, 26) (24, 26, 27)
+B13C3A38 003E3C38 Triangle (28, 29, 30) (28, 30, 31)
+
+04004100 0400C270 Load 16 vertices from 04:00C470
+B1040200 00060400 Triangle (0, 1, 2) (0, 2, 3)
+B10C0A08 000E0C08 Triangle (4, 5, 6) (4, 6, 7)
+B1141210 00161410 Triangle (8, 9, 10) (8, 10, 11)
+B11C1A18 001E1C18 Triangle (12, 13, 14) (12, 14, 15)
+B8000000 00000000 End Dlist
+
+;Call the dlists - 06:016618
+;divided up so different parts can be different surface types
+06000000 06016580 Call Dlist for first part of track
+06000000 06016640 Call Dlist for boost ramp
+00000000 00000000 NOP - reserved
+00000000 00000000 NOP - reserved
+B8000000 00000000 End Dlist
+
+;Draw the boost ramp - 06:016640
+BB000001 FFFFFFFF Begin Dlist
+04001040 0400C570 Load 4 vertices from 04:00C570
+B1040200 00060400 Triangle (0, 1, 2) (0, 2, 3)
+B8000000 00000000 End Dlist
+
+;Draw the second half - 06:016660, C1937C
+BB000001 FFFFFFFF Begin Dlist
+04008200 0400C5B0 Load 32 vertices from 04:00C5B0
+B1040200 00060400 Triangle (0, 1, 2) (0, 2, 3)
+B10C0A08 000E0C08 Triangle (4, 5, 6) (4, 6, 7)
+B1141210 00161410 Triangle (8, 9, 10) (8, 10, 11)
+B11C1A18 001E1C18 Triangle (12, 13, 14) (12, 14, 15)
+B1242220 00262420 Triangle (16, 17, 18) (16, 18, 19)
+B12C2A28 002E2C28 Triangle (20, 21, 22) (20, 22, 23)
+B1343230 00363430 Triangle (24, 25, 26) (24, 26, 27)
+B13C3A38 003E3C38 Triangle (28, 29, 30) (28, 30, 31)
+
+04008200 0400C7B0 Load 32 vertices from 04:00C7B0
+B1040200 00060400 Triangle (0, 1, 2) (0, 2, 3)
+B10C0A08 000E0C08 Triangle (4, 5, 6) (4, 6, 7)
+B1141210 00161410 Triangle (8, 9, 10) (8, 10, 11)
+B11C1A18 001E1C18 Triangle (12, 13, 14) (12, 14, 15)
+B1242220 00262420 Triangle (16, 17, 18) (16, 18, 19)
+B12C2A28 002E2C28 Triangle (20, 21, 22) (20, 22, 23)
+B1343230 00363430 Triangle (24, 25, 26) (24, 26, 27)
+B13C3A38 003E3C38 Triangle (28, 29, 30) (28, 30, 31)
+B8000000 00000000 End Dlist
+
+New vtxs start at 04:00C270 - C45396
+C45636 boost ramp vtxs
+
+04 Load Vtx:
+04 00 nn nn ss aa aa aa
+nnnn = # vertices * 0x410
+ss:aaaaaa = RSP address
+vtx cache size is 32 (nnnn=0x8200)
+
+Seg6 starts at 0xC02D9C
+New track texture at C483B0 (32x32, data at C484C0, file size 0x910)
+Item box data @ C190D4
+Path @ C04A94 (06:001CF8)
+arrow texture @ C48CD0
+
+New map: original at ROM 723034, MIO0 file in RAM at 80204480; there are graphics all
+over the place here, looks like the map is right above it
+Level header is at 802B8FF0; let's find the ROM read routine
