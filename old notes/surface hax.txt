@@ -1,5 +1,0 @@
-8002A10C checks if surface type ($V1 copied from $V0) is not 0xFE.
-800F6A88 surface type you're on (16-bit)
-800F6A80 and 800F6A84 are related to height/Y speed
-800798FC reads surface type, compares to 0xFD (forbidden)
-8007AA6C looks like it's reading a jump table at ~800EED1C
