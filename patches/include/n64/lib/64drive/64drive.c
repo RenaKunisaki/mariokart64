@@ -5,10 +5,6 @@ static volatile u32 *sdrv_regs = (volatile u32*)0xB8000000;
 //static volatile u16 *eeprom = (volatile u16*)0xB8001000;
 //static volatile u32 *save_writeback_lba = (volatile u32*)0xB8001800;
 
-#define DPRINT_BUF_SIZE (1024 - sizeof(u32))
-#define DPRINT_NUM_BUFFERS 16
-#define DPRINT_BUF_ADDR 0xB3000000
-
 typedef struct {
     u32 serial;
     char data[DPRINT_BUF_SIZE];
@@ -21,14 +17,13 @@ void sdrv_init() {
     //Initialize 64drive
     u32 intMask = __osDisableInt();
     while(dma_busy() || sdrv_isBusy());
-    sdrv_setRomWritable(1);
 
     //clear dprint buffer region
+    sdrv_setRomWritable(1);
     volatile u32 *p = (volatile u32*)DPRINT_BUF_ADDR;
     for(int i=0; i<(DPRINT_BUF_SIZE+4) * DPRINT_NUM_BUFFERS; i += 4) {
         cart_write32((void*)p++, 0);
     }
-
     sdrv_setRomWritable(0);
     __osRestoreInt(intMask);
 }
@@ -55,6 +50,73 @@ void sdrv_setRomWritable(int write) {
     sdrv_writeReg(SDRV_REG_COMMAND,
         write ? CMD_ENABLE_ROM_WRITE : CMD_DISABLE_ROM_WRITE);
     MEMORY_BARRIER();
+    while(sdrv_isBusy());
+}
+
+void sdrv_setSaveType(int type) {
+    //Set 64drive save type
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_BUFFER, type);
+    sdrv_writeReg(SDRV_REG_COMMAND, CMD_SET_SAVE_TYPE);
+    while(sdrv_isBusy());
+}
+
+void sdrv_setSaveWriteback(int enable) {
+    //Set whether to periodically write save data back to memory card.
+    //Default: on if booted from menu, off in USB mode.
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_COMMAND,
+        enable ? CMD_ENABLE_SAVE_WBK : CMD_DISABLE_SAVE_WBK);
+    while(sdrv_isBusy());
+}
+
+void sdrv_setByteswap(int enable) {
+    //Set whether to byteswap data copied from memory card to SDRAM.
+    //Default: disabled.
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_COMMAND,
+        enable ? CMD_ENABLE_LOAD_BSWAP : CMD_DISABLE_LOAD_BSWAP);
+    while(sdrv_isBusy());
+}
+
+u16 sdrv_isButtonPressed() {
+    //Check if the button on the 64drive cartridge is pressed.
+    return sdrv_readReg(SDRV_REG_BUTTON) & 0xFFFF;
+}
+
+void sdrv_readSector(u32 sector) {
+    //Read sector from memory card into buffer (SDRV_REG_BUFFER).
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_LBA, sector);
+    sdrv_writeReg(SDRV_REG_COMMAND, CMD_READ_SECTOR_TO_BUF);
+    while(sdrv_isBusy());
+}
+
+void sdrv_readSectors(u32 sector, u32 nSectors, void *dest) {
+    //Read multiple sectors from memory card into SDRAM.
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_LBA, sector);
+    sdrv_writeReg(SDRV_REG_LENGTH, nSectors);
+    sdrv_writeReg(SDRV_REG_BUFFER, ((u32)dest) & 0x01FFFFFF);
+    sdrv_writeReg(SDRV_REG_COMMAND, CMD_READ_SECTORS_TO_SDRAM);
+    while(sdrv_isBusy());
+}
+
+void sdrv_writeSector(u32 sector) {
+    //Write sector from buffer (SDRV_REG_BUFFER) to memory card.
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_LBA, sector);
+    sdrv_writeReg(SDRV_REG_COMMAND, CMD_WRITE_BUF_TO_SECTOR);
+    while(sdrv_isBusy());
+}
+
+void sdrv_writeSectors(u32 sector, u32 nSectors, const void *src) {
+    //Write multiple sectors to memory card from SDRAM.
+    while(sdrv_isBusy());
+    sdrv_writeReg(SDRV_REG_LBA, sector);
+    sdrv_writeReg(SDRV_REG_LENGTH, nSectors);
+    sdrv_writeReg(SDRV_REG_BUFFER + 4, ((u32)src) & 0x01FFFFFF);
+    sdrv_writeReg(SDRV_REG_COMMAND, CMD_WRITE_SDRAM_TO_SECTORS);
     while(sdrv_isBusy());
 }
 
