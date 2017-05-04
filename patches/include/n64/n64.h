@@ -8,6 +8,7 @@
 #include "types.h"
 #include "lib/libc/libc.h"
 #include "pi.h"
+#include "lib/rawio/rawio.h"
 #include "mio0.h"
 #include "patch.h"
 #include "lib/64drive/64drive.h"
