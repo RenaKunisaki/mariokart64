@@ -17,6 +17,7 @@ extern "C" {
 #define CMD_START_FW_UPGRADE       0xFA //param: MAGIC (0x55504752)
 #define CMD_SET_CF_PULSE_WIDTH     0xFD //param: N_CYCLES
 
+#define SDRV_MAGIC                 0x55444556 //"UDEV"
 #define SDRV_REG_BUFFER            0
 #define SDRV_REG_STATUS            0x200 //u16 R-
 #define SDRV_REG_COMMAND           0x208 //u32 -W
@@ -45,11 +46,14 @@ typedef enum {
 #define DPRINT_NUM_BUFFERS 16
 #define DPRINT_BUF_ADDR 0xB3000000
 
+int   sdrv_init();
+int   sdrv_isBusy();
 u32   sdrv_readReg(u32 addr);
 void  sdrv_writeReg(u32 addr, u32 val);
-int   sdrv_isBusy();
+u32   sdrv_getRamSize();
+u32   sdrv_getVariant();
+u32   sdrv_getVersion();
 void  sdrv_setRomWritable(int write);
-void  sdrv_init();
 void  sdrv_setSaveType(int type);
 void  sdrv_setSaveWriteback(int enable);
 void  sdrv_setByteswap(int enable);

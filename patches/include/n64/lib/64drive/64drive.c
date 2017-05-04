@@ -13,10 +13,16 @@ static dprint_buf_s *dprint_buf = (dprint_buf_s*)DPRINT_BUF_ADDR;
 static uint32_t dprint_next_serial = 0;
 
 
-void sdrv_init() {
-    //Initialize 64drive
+int sdrv_init() {
+    //Initialize 64drive. return nonzero on success, zero on failure.
     u32 intMask = __osDisableInt();
     while(dma_busy() || sdrv_isBusy());
+
+    if(sdrv_readReg(SDRV_REG_MAGIC) != SDRV_MAGIC) {
+        //not 64drive
+        __osRestoreInt(intMask);
+        return 0;
+    }
 
     //clear dprint buffer region
     sdrv_setRomWritable(1);
@@ -26,6 +32,7 @@ void sdrv_init() {
     }
     sdrv_setRomWritable(0);
     __osRestoreInt(intMask);
+    return 1;
 }
 
 int sdrv_isBusy() {
@@ -41,6 +48,21 @@ u32 sdrv_readReg(u32 reg) {
 void sdrv_writeReg(u32 reg, u32 val) {
     //write to 64drive register
     cart_write32((void*)&sdrv_regs[reg / 4], val);
+}
+
+u32 sdrv_getRamSize() {
+    //Return number of bytes of SDRAM installed.
+    return sdrv_readReg(SDRV_REG_SDRAM_SIZE);
+}
+
+u32 sdrv_getVariant() {
+    //Return 64drive hardware variant. eg 0x00004100 = rev A
+    return sdrv_readReg(SDRV_REG_VARIANT);
+}
+
+u32 sdrv_getVersion() {
+    //Return 64drive firmware version. eg (decimal) 203 = 2.03
+    return sdrv_readReg(SDRV_REG_REVISION);
 }
 
 void sdrv_setRomWritable(int write) {
@@ -143,8 +165,8 @@ void sdrv_dprint(const char *text) {
 
         //no free buffer... wait for one
         //__osRestoreInt(intMask);
-        return;
-        //osYieldThread();
+        //return;
+        osYieldThread();
         //intMask = __osDisableInt();
         //while(dma_busy() || sdrv_isBusy());
     }

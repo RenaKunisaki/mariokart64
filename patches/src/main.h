@@ -8,6 +8,7 @@ extern "C" {
 
     char* strAppend(char *dest, const char *src);
     char* printHex(char *buf, u32 num, int nDigits);
+    char* printNum(char *buf, u32 num);
 } //extern "C"
 
 #endif //_MAIN_H_

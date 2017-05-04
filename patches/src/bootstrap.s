@@ -42,19 +42,28 @@ loader:
         sw    $v1, 0x08($t1)
 
         # hook the PI thread just before it begins a DMA.
-        make_jal $a0, dmaThreadHook_base
-        li    $a1, 0x800D2FF8
-        sw    $a0, ($a1)
-
-        # hook the "draw time on title screen when R pressed" routine.
-        #make_jal $a0, titleHook_base
-        #li    $a1, 0x8009F978
+        #make_jal $a0, dmaThreadHook_base
+        #li    $a1, 0x800D2FF8
         #sw    $a0, ($a1)
 
+        # hook the "draw time on title screen when R pressed" routine.
+        make_jal $a0, titleHook_base
+        li    $a1, 0x8009F978
+        sw    $a0, ($a1)
+
+        make_jal $a0, crashHook_base
+        li    $a1, 0x80004650
+        sw    $a0, ($a1)
+
         # patch crash handler to only require L press
-        li    $a1, 0x800DC6FE
-        li    $a0, 0xFFFF
-        sh    $a0, ($a1)
+        #li    $a1, 0x800DC6FE
+        #li    $a0, 0xFFFF
+        #sh    $a0, ($a1)
+
+        # patch crash handler to display without any button press
+        li    $a1, 0x800045F0
+        li    $a0, 0x08001192 # j 0x80004648
+        sw    $a0, ($a1)
 
         # zero BSS
         lui   $a1, %hi(RAM_BASE)
@@ -107,26 +116,26 @@ loader:
         j thread3_main_return
           nop
 
-    #titleHook_base:
-    #    lui   $t1, %hi(RAM_BASE)
-    #    ori   $t1, reg_save
-    #    sw    $ra, 0x00($t1)
-    #    sw    $a0, 0x04($t1)
-    #    sw    $a1, 0x08($t1)
-    #    sw    $a2, 0x0C($t1)
-    #    sw    $a3, 0x10($t1)
+    titleHook_base:
+        lui   $t1, %hi(RAM_BASE)
+        ori   $t1, reg_save
+        sw    $ra, 0x00($t1)
+        sw    $a0, 0x04($t1)
+        sw    $a1, 0x08($t1)
+        sw    $a2, 0x0C($t1)
+        sw    $a3, 0x10($t1)
 
-    #    jal   titleHook
-    #        move $a1, $s0
+        jal   titleHook
+            move $a1, $s0
 
-    #    lui   $t1, %hi(RAM_BASE)
-    #    ori   $t1, reg_save
-    #    lw    $ra, 0x00($t1)
-    #    lw    $a0, 0x04($t1)
-    #    lw    $a1, 0x08($t1)
-    #    lw    $a2, 0x0C($t1)
-    #    j     0x8009FB1C
-    #        lw    $a3, 0x10($t1)
+        lui   $t1, %hi(RAM_BASE)
+        ori   $t1, reg_save
+        lw    $ra, 0x00($t1)
+        lw    $a0, 0x04($t1)
+        lw    $a1, 0x08($t1)
+        lw    $a2, 0x0C($t1)
+        j     0x8009FB1C
+            lw    $a3, 0x10($t1)
 
     dmaThreadHook_base:
         #800D33A4 jalr $ra, $t9  # a0=0 (direction) a1=devaddr a2=destaddr a3=len
@@ -149,6 +158,28 @@ loader:
         lw    $a1, 0x08($t1)
         lw    $a2, 0x0C($t1)
         j     0x800D3830 # back to hooked function
+            lw    $a3, 0x10($t1)
+
+    crashHook_base:
+        lui   $t1, %hi(RAM_BASE)
+        ori   $t1, reg_save
+        sw    $ra, 0x00($t1)
+        sw    $a0, 0x04($t1)
+        sw    $a1, 0x08($t1)
+        sw    $a2, 0x0C($t1)
+        sw    $a3, 0x10($t1)
+
+        jal   crashHook
+            #move $a1, $s0
+            nop
+
+        lui   $t1, %hi(RAM_BASE)
+        ori   $t1, reg_save
+        lw    $ra, 0x00($t1)
+        lw    $a0, 0x04($t1)
+        lw    $a1, 0x08($t1)
+        lw    $a2, 0x0C($t1)
+        j     0x80004298
             lw    $a3, 0x10($t1)
 
     reg_save:
