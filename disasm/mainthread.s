@@ -117,7 +117,7 @@ thread1_entry: #800004E0
 
 
 
-thread3_entry: #800023E4 - main thread
+thread3_entry: #800023E4 - video thread
     addiu $sp, $sp, -0x60
     lui   $v1, 0x8015
     addiu $v1, $v1, 0x02A8
@@ -263,7 +263,7 @@ thread3_entry: #800023E4 - main thread
           addiu $sp, $sp. 0x60  # 800025D0
 
 
-thread5_entry: #8000277C - debug thread
+thread5_entry: #8000277C - main thread
     addiu $sp, $sp, -0x20
     sw    $a0, 0x20($sp)
     sw    $ra, 0x1C($sp)
